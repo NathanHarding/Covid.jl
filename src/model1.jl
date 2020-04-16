@@ -43,16 +43,21 @@ function init_person(id::Int, pos, prms::Dict{Symbol, Any}, cdf0::Vector{Float64
     else
         status = 'D'
     end
-    Person(id, pos, status, prms[:dur_exposed], prms[:dur_infectious], prms[:p_infect], prms[:p_death], prms[:p_reinfection], prms[:age], t_exit_exposed, 0)
+    Person(id, pos, status, prms[:dur_exposed], prms[:dur_infectious], prms[:p_infect], prms[:p_death], prms[:p_reinfection], prms[:age], t_exit_exposed, t_exit_infectious)
 end
 
 function init_model(griddims::Tuple{Int, Int}, npeople::Int, prms::Dict{Symbol, Any}, dist0; scheduler=fastest, properties=nothing)
     space = Space(griddims, moore=true)
     model = AgentBasedModel(Person, space; scheduler=scheduler, properties=properties)
     cdf0  = cumsum(dist0)
-    for i in 1:npeople
-        person = init_person(i, (1,1), prms, cdf0)
-        add_agent_single!(person, model)
+    i     = griddims[1]
+    j     = griddims[2]
+    for id in 1:npeople
+        j = j == griddims[2] ? 1 : j + 1
+        i = j == 1 ? i + 1 : i
+        i = i > griddims[1] ? 1 : i
+        person = init_person(id, (i, j), prms, cdf0)
+        add_agent!(person, person.pos, model)
     end
     model
 end
@@ -61,27 +66,39 @@ function agent_step!(agent, model)
     t = model.properties[:time]
     status = agent.status
     if status == 'E' && agent.t_exit_exposed == t  # Transition from Exposed
-        agent.status == 'I'
+        agent.status = 'I'
         agent.t_exit_infectious = t + agent.dur_infectious
-    elseif status == 'I'
-        if agent.t_exit_infectious == t  # Transition from Infectious
-            agent.status = rand() <= agent.p_death ? 'D' : 'R'
-        else  # Infect Susceptible neighbours
-            p_infect       = agent.p_infect
-            neighbor_cells = node_neighbors(agent, model)
-            for neighbor_cell in neighbor_cells
-                neighbour_ids = get_node_contents(neighbor_cell, model)
-                for neighbour_id in neighbour_ids
-                    neighbour = model[neighbour_id]
-                    r = rand()
-                    if neighbour.status == 'S' && r <= p_infect
-                        neighbour.status = 'I'
-                    elseif neighbour.status == 'R' && r <= neighbour.p_reinfection
-                        neighbour.status = 'I'
-                    end
-                end
-            end
+        return
+    end
+    status != 'I' && return
+    if agent.t_exit_infectious == t  # Transition from Infectious
+        agent.status = rand() <= agent.p_death ? 'D' : 'R'
+        return
+    end
+    # Infect Susceptible contacts in the same node
+    p_infect = agent.p_infect
+    same_node_ids = get_node_contents(agent, model)  # Includes agent.id
+    for same_node_id in same_node_ids
+        same_node_id == agent.id && continue  # Agent cannot infect him/herself
+        infect!(t, model.agents[same_node_id], p_infect)
+    end
+
+    # Infect Susceptible contacts in neighbouring nodes
+    neighbor_coords = node_neighbors(agent, model)  # Excludes agent.pos
+    for neighbor_coord in neighbor_coords
+        neighbour_ids = get_node_contents(neighbor_coord, model)
+        for neighbour_id in neighbour_ids
+            infect!(t, model.agents[neighbour_id], p_infect)
         end
+    end
+end
+
+"Infect contact with probability p_infect."
+function infect!(t::Int, contact::Person, p_infect::Float64)
+    r = rand()
+    if (contact.status == 'S' && r <= p_infect) || (contact.status == 'R' && r <= contact.p_reinfection)
+        contact.status = 'E'
+        contact.t_exit_exposed = t + contact.dur_exposed
     end
 end
 
