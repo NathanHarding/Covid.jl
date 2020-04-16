@@ -17,9 +17,6 @@ mutable struct Person <: AbstractAgent
     p_death::Float64   # Pr(Death | Infected)
     p_reinfection      # Pr(Re-infeection | Recovered and Contact with Infectious person)
 
-    # Risk factors
-    age::Int
-
     ### Conveniences for faster execution
     # Time of status exit
     t_exit_exposed::Int      # Time that person exits Exposed status. Populated when person enters Exposed status.
@@ -43,7 +40,7 @@ function init_person(id::Int, pos, prms::Dict{Symbol, Any}, cdf0::Vector{Float64
     else
         status = 'D'
     end
-    Person(id, pos, status, prms[:dur_exposed], prms[:dur_infectious], prms[:p_infect], prms[:p_death], prms[:p_reinfection], prms[:age], t_exit_exposed, t_exit_infectious)
+    Person(id, pos, status, prms[:dur_exposed], prms[:dur_infectious], prms[:p_infect], prms[:p_death], prms[:p_reinfection], t_exit_exposed, t_exit_infectious)
 end
 
 function init_model(griddims::Tuple{Int, Int}, npeople::Int, prms::Dict{Symbol, Any}, dist0; scheduler=fastest, properties=nothing)

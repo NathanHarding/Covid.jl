@@ -1,4 +1,4 @@
-cd("C:\\Users\\Owner\\repos\\Covid.jl")
+cd("C:\\projects\\repos\\Covid.jl")
 using Pkg
 Pkg.activate(".")
 
@@ -11,7 +11,7 @@ using DataFrames
 # Params
 griddims = (10, 10)
 npeople  = 200
-prms     = Dict{Symbol, Any}(:dur_exposed => 7, :dur_infectious => 21, :p_infect => 1.0, :p_death => 0.02, :p_reinfection => 0.0, :age => 20)
+prms     = Dict{Symbol, Any}(:dur_exposed => 7, :dur_infectious => 21, :p_infect => 1.0, :p_death => 0.02, :p_reinfection => 0.0)
 dist0    = [0.98, 0.02, 0.0, 0.0, 0.0]  # SEIRD
 
 # Data collection
@@ -32,4 +32,4 @@ model = model1.init_model(griddims, npeople, prms, dist0; properties=Dict(:time 
 data  = step!(model, model1.agent_step!, model_step!, nsteps, props, when=when);
 
 # Write to disk
-CSV.write("C:\\Users\\Owner\\PowerBI\\model1.tsv", data; delim='\t')
+CSV.write("C:\\projects\\data\\dhhs\\covid-abm\\model1.tsv", data; delim='\t')
