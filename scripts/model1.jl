@@ -11,11 +11,11 @@ using DataFrames
 # Params
 griddims = (10, 10)
 npeople  = 200
-prms     = Dict{Symbol, Any}(:dur_exposed => 7, :dur_infectious => 21, :p_infect => 1.0, :p_death => 0.02, :p_reinfection => 0.01, :age => 20)
+prms     = Dict{Symbol, Any}(:dur_exposed => 7, :dur_infectious => 21, :p_infect => 1.0, :p_death => 0.02, :p_reinfection => 0.0, :age => 20)
 dist0    = [0.98, 0.02, 0.0, 0.0, 0.0]  # SEIRD
 
 # Data collection
-nsteps = 365
+nsteps = 180
 when   = 1:nsteps  # Collect data at these steps (including step 0)
 nsusceptible(x) = count(i == 'S' for i in x)
 nexposed(x)     = count(i == 'E' for i in x)
@@ -31,6 +31,5 @@ end
 model = model1.init_model(griddims, npeople, prms, dist0; properties=Dict(:time => 0))
 data  = step!(model, model1.agent_step!, model_step!, nsteps, props, when=when);
 
-# Analyse
-data[1:10, :]
-
+# Write to disk
+CSV.write("C:\\Users\\Owner\\PowerBI\\model1.tsv", data; delim='\t')
