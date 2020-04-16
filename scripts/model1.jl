@@ -3,8 +3,10 @@ using Pkg
 Pkg.activate(".")
 
 using Agents  # step!
+using CSV
 using Covid
 using Covid.model1
+using DataFrames
 
 # Params
 griddims = (10, 10)
@@ -13,7 +15,7 @@ prms     = Dict{Symbol, Any}(:dur_exposed => 7, :dur_infectious => 21, :p_infect
 dist0    = [0.98, 0.02, 0.0, 0.0, 0.0]  # SEIRD
 
 # Data collection
-nsteps = 30
+nsteps = 365
 when   = 1:nsteps  # Collect data at these steps (including step 0)
 nsusceptible(x) = count(i == 'S' for i in x)
 nexposed(x)     = count(i == 'E' for i in x)
@@ -27,4 +29,8 @@ function model_step!(model)
     model.properties[:time] += 1
 end
 model = model1.init_model(griddims, npeople, prms, dist0; properties=Dict(:time => 0))
-data  = step!(model, model1.agent_step!, model_step!, nsteps, props, when=when)
+data  = step!(model, model1.agent_step!, model_step!, nsteps, props, when=when);
+
+# Analyse
+data[1:10, :]
+

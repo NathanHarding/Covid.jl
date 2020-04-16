@@ -63,18 +63,26 @@ function init_model(griddims::Tuple{Int, Int}, npeople::Int, prms::Dict{Symbol, 
 end
 
 function agent_step!(agent, model)
+    # Get required info
     t = model.properties[:time]
     status = agent.status
-    if status == 'E' && agent.t_exit_exposed == t  # Transition from Exposed
+
+    # Transition from Exposed
+    if status == 'E' && agent.t_exit_exposed == t
         agent.status = 'I'
         agent.t_exit_infectious = t + agent.dur_infectious
         return
     end
+
+    # Nothing to do if status is S, E-ongoing, R or D
     status != 'I' && return
-    if agent.t_exit_infectious == t  # Transition from Infectious
+
+    # Transition from Infectious
+    if agent.t_exit_infectious == t
         agent.status = rand() <= agent.p_death ? 'D' : 'R'
         return
     end
+
     # Infect Susceptible contacts in the same node
     p_infect = agent.p_infect
     same_node_ids = get_node_contents(agent, model)  # Includes agent.id
