@@ -133,7 +133,8 @@ function infect_contacts!(agent::Person, model, t::Int)
     end
 
     # Infect Susceptible contacts in neighbouring nodes
-    neighbor_coords = node_neighbors(agent, model)  # Excludes agent.pos
+    agent_node = coord2vertex(agent.pos, model)
+    neighbor_coords = Agents.neighbors(model.space.graph, agent_node)
     for neighbor_coord in neighbor_coords
         neighbour_ids = get_node_contents(neighbor_coord, model)
         for neighbour_id in neighbour_ids
