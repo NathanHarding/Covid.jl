@@ -19,14 +19,14 @@ dist0    = [0.98, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SEIHCVRD
 # Data collection
 nsteps = 180
 when   = 1:nsteps  # Collect data at these steps (including step 0)
-nsusceptible(x)  = count(i == 'S' for i in x)
-nexposed(x)      = count(i == 'E' for i in x)
-ninfected(x)     = count(i == 'I' for i in x)
-nhospitalised(x) = count(i == 'H' for i in x)
-nicu(x)          = count(i == 'C' for i in x)
-nventilated(x)   = count(i == 'V' for i in x)
-nrecovered(x)    = count(i == 'R' for i in x)
-ndeceased(x)     = count(i == 'D' for i in x)
+nsusceptible(x)  = count(i == :S for i in x)
+nexposed(x)      = count(i == :E for i in x)
+ninfected(x)     = count(i == :I for i in x)
+nhospitalised(x) = count(i == :H for i in x)
+nicu(x)          = count(i == :C for i in x)
+nventilated(x)   = count(i == :V for i in x)
+nrecovered(x)    = count(i == :R for i in x)
+ndeceased(x)     = count(i == :D for i in x)
 props  = Dict(:status => [nsusceptible, nexposed, ninfected, nhospitalised, nicu, nventilated, nrecovered, ndeceased])
 
 # Run
@@ -38,3 +38,25 @@ data  = step!(model, model2.agent_step!, model_step!, nsteps, props, when=when);
 
 # Write to disk
 CSV.write("C:\\projects\\data\\dhhs\\covid-abm\\model2.tsv", data; delim='\t')
+
+#=
+using Dates
+using ProfileView
+
+# Trigger compilation
+griddims = (10, 10)
+npeople  = 200
+model    = model2.init_model(griddims, npeople, prms, dist0; properties=Dict(:time => 0))
+println(now())
+@profview data = step!(model, model2.agent_step!, model_step!, nsteps, props, when=when);
+println(now())
+
+# Profile
+griddims = (200, 200)
+npeople  = 160_000
+model    = model2.init_model(griddims, npeople, prms, dist0; properties=Dict(:time => 0))
+println(now())
+@profview data = step!(model, model2.agent_step!, model_step!, nsteps, props, when=when);
+println(now())
+
+=#

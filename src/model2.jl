@@ -5,7 +5,7 @@ using Agents
 mutable struct Person <: AbstractAgent
     id::Int
     pos::Tuple{Int, Int}
-    status::Char  # S, E, I, H, C, V, R, D
+    status::Symbol  # S, E, I, H, C, V, R, D
 
     ### Constants (determined when person is created prior to execution)
     # Random variables
@@ -43,26 +43,26 @@ function init_person(id::Int, pos, prms::Dict{Symbol, Any}, cdf0::Vector{Float64
     t_exit_icu          = 0
     t_exit_ventilated   = 0
     if r <= cdf0[1]
-        status = 'S'
+        status = :S
     elseif r <= cdf0[2]
-        status = 'E'
+        status = :E
         t_exit_exposed = prms[:dur_exposed]
     elseif r <= cdf0[3]
-        status = 'I'
+        status = :I
         t_exit_infectious = prms[:dur_infectious]
     elseif r <= cdf0[4]
-        status = 'H'
+        status = :H
         t_exit_hospitalised = prms[:dur_hospitalised]
     elseif r <= cdf0[5]
-        status = 'C'
+        status = :C
         t_exit_icu = prms[:dur_icu]
     elseif r <= cdf0[6]
-        status = 'V'
+        status = :V
         t_exit_ventilated = prms[:dur_ventilated]
     elseif r <= cdf0[7]
-        status = 'R'
+        status = :R
     else
-        status = 'D'
+        status = :D
     end
     Person(id, pos, status,
            prms[:dur_exposed], prms[:dur_infectious], prms[:dur_hospitalised], prms[:dur_icu], prms[:dur_ventilated],
@@ -90,36 +90,36 @@ end
 function agent_step!(agent, model)
     t = model.properties[:time]
     status = agent.status
-    if status == 'E' && agent.t_exit_exposed == t           # Transition from Exposed
-        agent.status = 'I'
+    if status == :E && agent.t_exit_exposed == t           # Transition from Exposed
+        agent.status = :I
         agent.t_exit_infectious = t + agent.dur_infectious
-    elseif status == 'I'
+    elseif status == :I
         if agent.t_exit_infectious == t                     # Transition from Infectious
             if rand() <= agent.p_hospital
-                agent.status = 'H'
+                agent.status = :H
                 agent.t_exit_hospitalised = t + agent.dur_hospitalised
             else
-                agent.status = 'R'
+                agent.status = :R
             end
         else
             infect_contacts!(agent, model, t)               # Infect contacts
         end
-    elseif status == 'H' && agent.t_exit_hospitalised == t  # Transition from Hospitalised
+    elseif status == :H && agent.t_exit_hospitalised == t  # Transition from Hospitalised
         if rand() <= agent.p_icu
-            agent.status = 'C'
+            agent.status = :C
             agent.t_exit_icu = t + agent.dur_icu
         else
-            agent.status = 'R'
+            agent.status = :R
         end
-    elseif status == 'C' && agent.t_exit_icu == t           # Transition from ICU
+    elseif status == :C && agent.t_exit_icu == t           # Transition from ICU
         if rand() <= agent.p_ventilation
-            agent.status = 'V'
+            agent.status = :V
             agent.t_exit_ventilated = t + agent.dur_ventilated
         else
-            agent.status = 'R'
+            agent.status = :R
         end
-    elseif status == 'V' && agent.t_exit_ventilated == t    # Transition from Ventilated
-        agent.status = rand() <= agent.p_death ? 'D' : 'R'
+    elseif status == :V && agent.t_exit_ventilated == t    # Transition from Ventilated
+        agent.status = rand() <= agent.p_death ? :D : :R
     end
 end
 
@@ -145,10 +145,16 @@ end
 
 "Infect contact with probability p_infect."
 function infect_contact!(t::Int, contact::Person, p_infect::Float64)
-    r = rand()
-    if (contact.status == 'S' && r <= p_infect) || (contact.status == 'R' && r <= contact.p_reinfection)
-        contact.status = 'E'
-        contact.t_exit_exposed = t + contact.dur_exposed
+    if contact.status == :S
+        if rand() <= p_infect
+            contact.status = :E
+            contact.t_exit_exposed = t + contact.dur_exposed
+        end
+    elseif contact.status == :R
+        if rand() <= contact.p_reinfection
+            contact.status = :E
+            contact.t_exit_exposed = t + contact.dur_exposed
+        end
     end
 end
 
