@@ -15,7 +15,7 @@ mutable struct Person <: AbstractAgent
     # Probabilities
     p_infect::Float64  # Pr(Infecting a Susceptible person | Status is Infectious and Contact with Susceptible person)
     p_death::Float64   # Pr(Death | Infected)
-    p_reinfection      # Pr(Re-infeection | Recovered and Contact with Infectious person)
+    p_reinfection      # Pr(Re-infection | Recovered and Contact with Infectious person)
 
     ### Conveniences for faster execution
     # Time of status exit

@@ -21,7 +21,7 @@ mutable struct Person <: AbstractAgent
     p_icu::Float64          # Pr(ICU | Hospitalisation). Pr(Recovery | Hospitalisation) = 1 - Pr(ICU | Hospitalisation).
     p_ventilation::Float64  # Pr(Ventilation | ICU). Pr(Recovery | ICU) = 1 - Pr(Ventilation | ICU).
     p_death::Float64        # Pr(Death | Ventilation).  Pr(Recovery | Ventilation) = 1 - Pr(Death | Ventilation).
-    p_reinfection           # Pr(Re-infeection | Recovered and Contact with Infectious person)
+    p_reinfection           # Pr(Re-infection | Recovered and Contact with Infectious person)
 
     # Risk factors
     age::Int
