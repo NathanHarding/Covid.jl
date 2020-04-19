@@ -1,11 +1,13 @@
 module Covid
 
-include("model1.jl")
-include("model2.jl")
-include("model3.jl")
+#include("model1.jl")
+#include("model2.jl")
+#include("model3.jl")
+include("model4.jl")
 
-using .model1
-using .model2
-using .model3
+#using .model1
+#using .model2
+#using .model3
+using .model4
 
 end
