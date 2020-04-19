@@ -31,13 +31,13 @@ using ProfileView
 # Trigger compilation
 model = model4.init_model(npeople, params, maxtime, dist0);
 println(now())
-@profileview data  = model4.run!(model);
+@profview data  = model4.run!(model);
 println(now())
 
 # Profile
 model = model4.init_model(npeople, params, maxtime, dist0);
 println(now())
-@profileview data  = model4.run!(model);
+@profview data  = model4.run!(model);
 println(now())
 
 =#
