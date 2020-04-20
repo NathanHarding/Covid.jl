@@ -1,5 +1,11 @@
 module Covid
 
+export run!
+
+include("core.jl")
+
+using .core
+
 #include("model1.jl")
 #include("model2.jl")
 #include("model3.jl")

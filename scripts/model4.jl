@@ -4,7 +4,6 @@ Pkg.activate(".")
 
 using CSV
 using Covid
-using Covid.model4
 using DataFrames
 using Dates
 
@@ -17,9 +16,9 @@ dist0   = [0.98, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SEIHCVRD
 
 # Run
 #npeople = 1_000_000
-model = model4.init_model(npeople, params, maxtime, dist0);
+model = Covid.model4.init_model(npeople, params, maxtime, dist0);
 println(now())
-data  = model4.run!(model);
+data  = run!(model);
 println(now())
 
 # Write to disk
@@ -29,15 +28,16 @@ CSV.write("C:\\projects\\data\\dhhs\\covid-abm\\model4.tsv", data; delim='\t')
 using ProfileView
 
 # Trigger compilation
-model = model4.init_model(npeople, params, maxtime, dist0);
+model = Covid.model4.init_model(npeople, params, maxtime, dist0);
 println(now())
-@profview data  = model4.run!(model);
+@profview data = run!(model);
 println(now())
 
 # Profile
-model = model4.init_model(npeople, params, maxtime, dist0);
+npeople = 1_000_000
+model = Covid.model4.init_model(npeople, params, maxtime, dist0);
 println(now())
-@profview data  = model4.run!(model);
+@profview data = run!(model);
 println(now())
 
 =#
