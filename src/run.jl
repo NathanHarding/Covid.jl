@@ -7,7 +7,7 @@ using CSV
 using ..config
 using ..utils
 using ..core
-using ..model6
+using ..abm
 
 function main(configfile::String)
     cfg     = Config(configfile)

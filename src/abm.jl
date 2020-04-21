@@ -6,7 +6,7 @@ Pr(next state is j | current state is i, age) = 1 / (1 + exp(-(a0 + a1*age)))
 
 duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
-module model6
+module abm
 
 export init_model
 
@@ -24,7 +24,8 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
     model     = Model(agents, params, 0, maxtime, schedule0, schedule)
     cdf0      = cumsum(dist0)
     for id in 1:npeople
-        agents[id] = Person(id, model, cdf0)
+age = 20
+        agents[id] = Person(id, model, cdf0, age)
     end
     model
 end
@@ -43,8 +44,7 @@ mutable struct Person <: AbstractAgent
     age::Int
 end
 
-function Person(id::Int, model, cdf0::Vector{Float64})
-    age = 20
+function Person(id::Int, model, cdf0::Vector{Float64}, age::Int)
     params = model.params
     r = rand()
     if r <= cdf0[1]

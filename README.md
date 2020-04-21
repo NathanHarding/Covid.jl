@@ -1,5 +1,16 @@
 # Covid.jl
 
+# Run the code
+
+```julia
+cd("C:\\projects\\repos\\Covid.jl")
+using Pkg
+Pkg.activate(".")
+using Covid
+configfile = "config\\config.yml"
+Covid.main(configfile)
+```
+
 ## Time
 
 The model has a `time` property with integer value.
@@ -27,8 +38,7 @@ According to the above, when `t=7`:
 
 ## Next
 
-1. Model6: age = generate_age(age_distribution)
-2. Model7: Contact structure from age and ABS-like data
-3. Model8: Define and impose social distancing regimes.
-4. Model9: Solve for parameters.
-5. Model10: Add other risk factors such as diabetic status, hypertension, BMI, etc.
+- Contact structure from age and ABS-like data
+- Define and impose social distancing regimes.
+- Solve for parameters.
+- Add other risk factors such as diabetic status, hypertension, BMI, etc.
