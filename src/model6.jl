@@ -1,18 +1,23 @@
 """
 SEIHCVRD age-specific transition probabilities and durations.
+The age structure is read from disk.
 
 Pr(next state is j | current state is i, age) = 1 / (1 + exp(-(a0 + a1*age)))
 
 duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
-module model5
+module model6
+
+export init_model
 
 using DataFrames
 using Distributions
 
 using ..core
 
-function init_model(npeople::Int, params::T, maxtime, dist0) where {T <: NamedTuple}
+function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) where {T <: NamedTuple}
+    agedist   = indata["age_distribution"]
+    npeople   = sum(agedist[!, :Count])
     agents    = Vector{Person}(undef, npeople)
     schedule0 = EventBag()
     schedule  = [EventBag() for t = 1:(maxtime - 1)]

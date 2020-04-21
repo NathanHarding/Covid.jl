@@ -24,3 +24,11 @@ According to the above, when `t=7`:
 2. The scheduled state change occurs during `(7, 8)`, i.e., after 7 periods but before 8 periods have elapsed.
 3. Time is incremented to `t=8`.
 4. Data is collected as at `t=8`. The state change is recorded as having _occurred by_ `t=8`, with the change actually occurring during `(7, 8)`.
+
+## Next
+
+1. Model6: age = generate_age(age_distribution)
+2. Model7: Contact structure from age and ABS-like data
+3. Model8: Define and impose social distancing regimes.
+4. Model9: Solve for parameters.
+5. Model10: Add other risk factors such as diabetic status, hypertension, BMI, etc.

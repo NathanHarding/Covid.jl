@@ -2,20 +2,16 @@ module Covid
 
 export run!
 
+include("config.jl")
+include("utils.jl")
 include("core.jl")
+include("model6.jl")  # Depends on core
+include("run.jl")
 
+using .config
+using .utils
 using .core
-
-#include("model1.jl")
-#include("model2.jl")
-#include("model3.jl")
-#include("model4.jl")
-include("model5.jl")
-
-#using .model1
-#using .model2
-#using .model3
-#using .model4
-using .model5
+using .model6
+using .run
 
 end
