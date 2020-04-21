@@ -13,16 +13,16 @@ using ..abm
 
 function main(configfile::String)
     @info "$(now()) Configuring model"
-    cfg     = Config(configfile)
+    cfg = Config(configfile)
 
     @info "$(now()) Importing input data"
-    indata  = utils.import_data(cfg.input_data)
-    params  = indata["params"]
-    params  = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(params.name, params.value))
-    params  = utils.dict_to_namedtuple(params)
+    indata = utils.import_data(cfg.input_data)
 
     @info "$(now()) Initialising model"
-    model   = init_model(indata, params, cfg.maxtime, cfg.initial_state_distribution)
+    params = indata["params"]
+    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(params.name, params.value))
+    params = utils.dict_to_namedtuple(params)
+    model  = init_model(indata, params, cfg.maxtime, cfg.initial_state_distribution)
 
     @info "$(now()) Running model"
     outdata = run!(model)

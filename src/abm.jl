@@ -23,9 +23,21 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
     schedule  = [EventBag() for t = 1:(maxtime - 1)]
     model     = Model(agents, params, 0, maxtime, schedule0, schedule)
     cdf0      = cumsum(dist0)
-    for id in 1:npeople
-age = 20
-        agents[id] = Person(id, model, cdf0, age)
+    n_agegroups = size(agedist, 1)
+    id = 0
+    for i = 1:n_agegroups
+        agegroup = String(agedist[i, :AgeGroup])  # Example: "Age 0-4", "Age 85+"
+        agegroup = agegroup[5:end]                # Example: "0-4", "85+"
+        idx = findfirst(==('-'), agegroup)
+        idx = isnothing(idx) ? findfirst(==('+'), agegroup) : idx
+        lb  = parse(Int, agegroup[1:(idx-1)])
+        ub  = lb + 4  # Oldest age is therefore 89
+        n_agegroup = agedist[i, :Count]
+        for j in 1:n_agegroup
+            id += 1
+            age = rand(lb:ub)
+            agents[id] = Person(id, model, cdf0, age)
+        end
     end
     model
 end
