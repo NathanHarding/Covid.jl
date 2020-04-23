@@ -5,7 +5,7 @@ export populate_contacts!
 using LightGraphs
 
 function populate_contacts!(agents, indata)
-    #populate_households!(agents, indata["household_distribution"])
+    populate_households!(agents, indata["household_distribution"])
     populate_social_contacts!(agents)
 end
 
@@ -40,7 +40,7 @@ struct Household
         max_nchildren < 0                     && error("Household must have a non-negative number of children")
         max_nadults + max_nchildren == 0      && error("Household must have at least 1 resident")
         max_nadults == 0 && max_nchildren > 0 && error("Household with children must have at least 1 adult")
-        new(max_nadults, max_nchildren, ids)
+        new(max_nadults, max_nchildren, adults, children)
     end
 end
 
@@ -60,20 +60,6 @@ function push_child!(hh::Household, id)
     length(hh.children) >= hh.max_nchildren && return false  # Household is full. No success.
     push!(hh.children, id)  # Add person to household
     true  # Success
-end
-
-# Non-families
-single_resident() = Household(1, 0)
-group_household(nadults) = Household(nadults, 0)
-
-# Families
-couple_no_kids()         = Household(2, 0)
-single_parent(nchildren) = Household(1, nchildren)
-dual_parent(nchildren)   = Household(2, nchildren)
-
-function other_family(nadults, nchildren)
-    nchildren == 0 && error("Other family households must have at least 1 child")
-    Household(nadults, nchildren)
 end
 
 """
@@ -99,17 +85,21 @@ function populate_households!(agents, d_household)
     nonfull = Set{Household}()  # Partially-filled households
     for agent in agents
         if agent.age <= 17
-            nh_total = add_child_to_household!(agents, agent.id, nonfull, nh_total)
+            nh_total = add_child_to_household!(agents, agent.id, nonfull, d_household, nh_total)
         else
-            nh_total = add_adult_to_household!(agents, agent.id, nonfull, nh_total)
+            nh_total = add_adult_to_household!(agents, agent.id, nonfull, d_household, nh_total)
         end
     end
+
+#d_household[!, :p_actual] = d_household.n_households ./ nh_total
+#println(d_household[:, [2,3,4,5,6]])
+
     for household in nonfull  # Remaining partially-filled households
         set_household_contacts!(agents, household)
     end
 end
 
-function add_child_to_household!(agents, id, nonfull, nh_total)
+function add_child_to_household!(agents, id, nonfull, d_household, nh_total)
     household = nothing
     for hh in nonfull
         ok = push_child!(hh, id)
@@ -118,7 +108,8 @@ function add_child_to_household!(agents, id, nonfull, nh_total)
         break
     end
     if isnothing(household)  # A suitable household is not in nonfull
-        household, nh_total = create_new_household_with_child(d_household, nh_total)  # Create household and update running proportion
+        household = create_new_household_with_child(d_household, nh_total)  # Create household and update running proportion
+        nh_total += 1
         push_child!(household, id)
         if isfull(household)
             set_household_contacts!(agents, household)
@@ -132,7 +123,7 @@ function add_child_to_household!(agents, id, nonfull, nh_total)
     nh_total
 end
 
-function add_adult_to_household!(agents, id, nonfull, nh_total)
+function add_adult_to_household!(agents, id, nonfull, d_household, nh_total)
     household = nothing
     for hh in nonfull
         ok = push_adult!(hh, id)
@@ -141,7 +132,8 @@ function add_adult_to_household!(agents, id, nonfull, nh_total)
         break
     end
     if isnothing(household)  # A suitable household is not in nonfull
-        household, nh_total = create_new_household_without_child(d_household, nh_total)  # Create household and update running proportion
+        household = create_new_household_without_child(d_household, nh_total)  # Create household and update running proportion
+        nh_total += 1
         push_adult!(household, id)
         if isfull(household)
             set_household_contacts!(agents, household)
@@ -175,14 +167,12 @@ function create_new_household_with_child(d_household, nh_total)
         p_running >= d_household[i, :proportion_of_households] && continue  # Target proportion has been met
         d_household[i, :nchildren] == 0 && continue  # No children in this household
         d_household[i, :n_households] += 1
-        nh_total += 1
-        return Household(d_household[i, :nadults], d_household[i, :nchildren]), nh_total
+        return Household(d_household[i, :nadults], d_household[i, :nchildren])
     end
     for i = 1:n  # If no household type has been found, ignore the target constraint
         d_household[i, :nchildren] == 0 && continue  # No children in this household
         d_household[i, :n_households] += 1
-        nh_total += 1
-        return Household(d_household[i, :nadults], d_household[i, :nchildren]), nh_total
+        return Household(d_household[i, :nadults], d_household[i, :nchildren])
     end
 end
 
@@ -194,13 +184,13 @@ function create_new_household_without_child(d_household, nh_total)
         d_household[i, :nchildren] > 0 && continue  # Children in this household
         d_household[i, :n_households] += 1
         nh_total += 1
-        return Household(d_household[i, :nadults], d_household[i, :nchildren]), nh_total
+        return Household(d_household[i, :nadults], d_household[i, :nchildren])
     end
     for i = 1:n  # If no household type has been found, ignore the target constraint
         d_household[i, :nchildren] > 0 && continue  # Children in this household
         d_household[i, :n_households] += 1
         nh_total += 1
-        return Household(d_household[i, :nadults], d_household[i, :nchildren]), nh_total
+        return Household(d_household[i, :nadults], d_household[i, :nchildren])
     end
 end
 
