@@ -155,15 +155,27 @@ end
 # Functions called by event functions
 
 dur_E(params, age) = rand(Poisson(exp(params.b0_E + params.b1_E * age)))
-dur_I(params, age) = rand(Poisson(exp(params.b0_I + params.b1_I * age)))
 dur_H(params, age) = rand(Poisson(exp(params.b0_H + params.b1_H * age)))
+dur_I(params, age) = rand(Poisson(exp(params.b0_I + params.b1_I * age)))
 dur_C(params, age) = rand(Poisson(exp(params.b0_C + params.b1_C * age)))
 dur_V(params, age) = rand(Poisson(exp(params.b0_V + params.b1_V * age)))
 
-p_H(params, age) = 1.0 / (1.0 + exp(-(params.a0_H + params.a1_H * age)))  # Pr(Next state is H | age)
-p_C(params, age) = 1.0 / (1.0 + exp(-(params.a0_C + params.a1_C * age)))  # Pr(Next state is C | age)
-p_V(params, age) = 1.0 / (1.0 + exp(-(params.a0_V + params.a1_V * age)))  # Pr(Next state is V | age)
-p_D(params, age) = 1.0 / (1.0 + exp(-(params.a0_D + params.a1_D * age)))  # Pr(Next state is D | age)
+"Pr(Next state is H | Current state is I, age)."
+function p_H(params, age)
+    age <= 9  && return params.p_H_0to9
+    age <= 19 && return params.p_H_10to19
+    age <= 29 && return params.p_H_20to29
+    age <= 39 && return params.p_H_30to39
+    age <= 49 && return params.p_H_40to49
+    age <= 59 && return params.p_H_50to59
+    age <= 69 && return params.p_H_60to69
+    age <= 79 && return params.p_H_70to79
+    params.p_H_gte80
+end
+
+p_C(params, age) = 1.0 / (1.0 + exp(-(params.a0_C + params.a1_C * age)))  # Pr(Next state is C | Current state is H, age)
+p_V(params, age) = 1.0 / (1.0 + exp(-(params.a0_V + params.a1_V * age)))  # Pr(Next state is V | Current state is C, age)
+p_D(params, age) = 1.0 / (1.0 + exp(-(params.a0_D + params.a1_D * age)))  # Pr(Next state is D | Current state is V, age)
 
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
