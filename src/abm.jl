@@ -16,13 +16,16 @@ using Distributions
 using ..core
 
 function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) where {T <: NamedTuple}
+    # Init model
     agedist   = indata["age_distribution"]
     npeople   = sum(agedist[!, :Count])
     agents    = Vector{Person}(undef, npeople)
     schedule0 = EventBag()
     schedule  = [EventBag() for t = 1:(maxtime - 1)]
     model     = Model(agents, params, 0, maxtime, schedule0, schedule)
-    cdf0      = cumsum(dist0)
+
+    # Init people
+    cdf0 = cumsum(dist0)
     n_agegroups = size(agedist, 1)
     id = 0
     for i = 1:n_agegroups
@@ -39,6 +42,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
             agents[id] = Person(id, model, cdf0, age)
         end
     end
+    populate_social_networks!(agents, agedist)
     model
 end
 
@@ -86,12 +90,7 @@ function Person(id::Int, model, cdf0::Vector{Float64}, age::Int)
     else
         status = :D
     end
-    npeople   = length(model.agents)
-    household = Int[]
-    work      = Int[]
-    community = Int[]
-    social    = sample(1:npeople, 35; replace=false)
-    Person(id, status, household, work, community, social, age)
+    Person(id, status, Int[], Int[], Int[], Int[], age)
 end
 
 struct EventBag <: AbstractEventBag
@@ -215,6 +214,16 @@ function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, 
         end
     end
     =#
+end
+
+################################################################################
+# Social networks
+
+function populate_social_networks!(agents, agedist)
+    npeople = length(agents)
+    for id = 1:npeople
+        agents[id].social = sample(1:npeople, 35; replace=false)
+    end
 end
 
 end
