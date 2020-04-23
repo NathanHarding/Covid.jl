@@ -12,9 +12,9 @@ export init_model
 
 using DataFrames
 using Distributions
-using LightGraphs
 
 using ..core
+using ..contactnetworks
 
 function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) where {T <: NamedTuple}
     # Init model
@@ -25,10 +25,10 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
     schedule  = [EventBag() for t = 1:(maxtime - 1)]
     model     = Model(agents, params, 0, maxtime, schedule0, schedule)
 
-    # Init people
+    # Construct people
+    id = 0
     cdf0 = cumsum(dist0)
     n_agegroups = size(agedist, 1)
-    id = 0
     for i = 1:n_agegroups
         agegroup = String(agedist[i, :AgeGroup])  # Example: "Age 0-4", "Age 85+"
         agegroup = agegroup[5:end]                # Example: "0-4", "85+"
@@ -43,7 +43,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
             agents[id] = Person(id, model, cdf0, age)
         end
     end
-    populate_social_networks!(agents, agedist)
+    populate_contacts!(agents, indata)
     model
 end
 
@@ -215,19 +215,6 @@ function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, 
         end
     end
     =#
-end
-
-################################################################################
-# Social networks
-
-function populate_social_networks!(agents, agedist)
-    npeople   = length(agents)
-    ncontacts = 35
-    g = random_regular_graph(npeople, ncontacts)  # npeople (vertices) each with ncontacts (edges to ncontacts other vertices)
-    adjlist = g.fadjlist
-    for id = 1:npeople
-        agents[id].social = adjlist[id]
-    end
 end
 
 end

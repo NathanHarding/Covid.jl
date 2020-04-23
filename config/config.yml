@@ -2,5 +2,6 @@ output_data: "C:\\projects\\data\\dhhs\\covid-abm\\output\\model6.tsv"
 input_data:
   params: "C:\\projects\\data\\dhhs\\covid-abm\\input\\params.csv"
   age_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\age_distribution.csv"
+  household_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\household_distribution.csv"
 initial_state_distribution: [0.98, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SEIHCVRD
 maxtime: 180
