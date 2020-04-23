@@ -12,6 +12,7 @@ export init_model
 
 using DataFrames
 using Distributions
+using LightGraphs
 
 using ..core
 
@@ -220,9 +221,12 @@ end
 # Social networks
 
 function populate_social_networks!(agents, agedist)
-    npeople = length(agents)
+    npeople   = length(agents)
+    ncontacts = 35
+    g = random_regular_graph(npeople, ncontacts)  # npeople (vertices) each with ncontacts (edges to ncontacts other vertices)
+    adjlist = g.fadjlist
     for id = 1:npeople
-        agents[id].social = sample(1:npeople, 35; replace=false)
+        agents[id].social = adjlist[id]
     end
 end
 
