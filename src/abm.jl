@@ -16,18 +16,18 @@ using Distributions
 using ..core
 using ..contacts
 
-function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) where {T <: NamedTuple}
+function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
     agedist   = indata["age_distribution"]
     npeople   = sum(agedist[!, :Count])
     agents    = Vector{Person}(undef, npeople)
     schedule0 = EventBag()
-    schedule  = [EventBag() for t = 1:(maxtime - 1)]
-    model     = Model(agents, params, 0, maxtime, schedule0, schedule)
+    schedule  = [EventBag() for t = 1:(cfg.maxtime - 1)]
+    model     = Model(agents, params, 0, cfg.maxtime, schedule0, schedule)
 
     # Construct people
     id = 0
-    cdf0 = cumsum(dist0)
+    cdf0 = cumsum(cfg.initial_state_distribution)
     n_agegroups = size(agedist, 1)
     for i = 1:n_agegroups
         agegroup = String(agedist[i, :AgeGroup])  # Example: "Age 0-4", "Age 85+"
@@ -45,8 +45,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
     end
 
     # Sort agents and populate contacts
-    age2first = sort_agents!(agents)  # agents[age2first[i]] is the first agent with age i
-    populate_contacts!(agents, indata, age2first)
+    populate_contacts!(agents, cfg, indata)
     model
 end
 
@@ -107,14 +106,14 @@ end
 
 EventBag() = EventBag((exit_E!, Int[]), (exit_I!, Int[]), (exit_H!, Int[]), (exit_C!, Int[]), (exit_V!, Int[]))
 
-function exit_E!(agent::Person, model, t)
+function exit_E!(agent::Person, model, t, scenario)
     agent.status = :I
-    infect_contacts!(agent, model, t)
+    infect_contacts!(agent, model, t, scenario)
     dur = dur_I(model.params, agent.age)
     schedule!(agent.id, t + dur, :exit_I, model)
 end
 
-function exit_I!(agent::Person, model, t)
+function exit_I!(agent::Person, model, t, scenario)
     params = model.params
     age    = agent.age
     if rand() <= p_H(params, age)
@@ -126,7 +125,7 @@ function exit_I!(agent::Person, model, t)
     end
 end
 
-function exit_H!(agent::Person, model, t)
+function exit_H!(agent::Person, model, t, scenario)
     params = model.params
     age    = agent.age
     if rand() <= p_C(params, age)
@@ -138,7 +137,7 @@ function exit_H!(agent::Person, model, t)
     end
 end
 
-function exit_C!(agent::Person, model, t)
+function exit_C!(agent::Person, model, t, scenario)
     params = model.params
     age    = agent.age
     if rand() <= p_V(params, age)
@@ -150,7 +149,7 @@ function exit_C!(agent::Person, model, t)
     end
 end
 
-function exit_V!(agent::Person, model, t)
+function exit_V!(agent::Person, model, t, scenario)
     agent.status = rand() <= p_D(model.params, agent.age) ? :D : :R
 end
 
@@ -182,20 +181,46 @@ p_D(params, age) = 1.0 / (1.0 + exp(-(params.a0_D + params.a1_D * age)))  # Pr(N
 
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
-function infect_contacts!(agent::Person, model, t::Int)
-    agents    = model.agents
-    params    = model.params
-    pr_infect = p_infect(params, agent.age)
+function infect_contacts!(agent::Person, model, t::Int, scenario)
+    agents      = model.agents
+    params      = model.params
+    age         = agent.age
+    pr_infect   = p_infect(params, age)
+    p_workplace = age <= 17 ? scenario.school : scenario.workplace
+    infect_household_contacts!(scenario.household, pr_infect, params, agent, agents, model, t)
+    infect_workplace_contacts!(p_workplace,        pr_infect, params, agent, agents, model, t)
+    infect_community_contacts!(scenario.community, pr_infect, params, agent, agents, model, t)
+    infect_social_contacts!(scenario.social,       pr_infect, params, agent, agents, model, t)
+end
+
+function infect_household_contacts!(p_household, pr_infect, params, agent, agents, model, t)
+    p_household == 0.0 && return
     for id in agent.household
+        rand() > p_household && continue
         infect_contact!(pr_infect, params, agents[id], model, t)
     end
+end
+
+function infect_workplace_contacts!(p_workplace, pr_infect, params, agent, agents, model, t)
+    p_workplace == 0.0 && return
     for id in agent.work
+        rand() > p_workplace && continue
         infect_contact!(pr_infect, params, agents[id], model, t)
     end
+end
+
+function infect_community_contacts!(p_community, pr_infect, params, agent, agents, model, t)
+    p_community == 0.0 && return
     for id in agent.community
+        rand() > p_community && continue
         infect_contact!(pr_infect, params, agents[id], model, t)
     end
+end
+
+function infect_social_contacts!(p_social, pr_infect, params, agent, agents, model, t)
+    p_social == 0.0 && return
     for id in agent.social
+        rand() > p_social && continue
         infect_contact!(pr_infect, params, agents[id], model, t)
     end
 end
@@ -218,30 +243,6 @@ function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, 
         end
     end
     =#
-end
-
-################################################################################
-# Utils
-
-"""
-- Sort agents
-- Rewrite their ids in order
-- Return age2first, where agents[age2first[i]] is the first agent with age i
-"""
-function sort_agents!(agents)
-    sort!(agents, by=(x) -> x.age)  # Sort from youngest to oldest
-    age2first = Dict{Int, Int}()    # age => first index containing age
-    current_age = -1
-    for i = 1:length(agents)
-        agent = agents[i]
-        agent.id = i
-        age = agent.age
-        if age != current_age
-            current_age = age
-            age2first[current_age] = i
-        end
-    end
-    age2first
 end
 
 end

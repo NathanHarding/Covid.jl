@@ -5,12 +5,14 @@ export populate_contacts!
 using Distributions
 using LightGraphs
 
-function populate_contacts!(agents, indata, age2first)
+function populate_contacts!(agents, cfg, indata)
+    age2first   = sort_agents!(agents)  # agents[age2first[i]] is the first agent with age i
     d_nparents  = Categorical([0.26, 0.74])
     d_nchildren = Categorical([0.33, 0.4, 0.25, 0.01, 0.005, 0.005])
     d_nadults_without_children = Categorical([0.42, 0.47, 0.04, 0.04, 0.02, 0.01])
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
-    populate_social_contacts!(agents)
+    populate_community_contacts!(agents, cfg.n_community_contacts)
+    populate_social_contacts!(agents, cfg.n_social_contacts)
 end
 
 function append_contact!(agent, category::Symbol, id::Int)
@@ -26,6 +28,27 @@ function append_contacts!(agent, category::Symbol, ids::Vector{Int})
         id == ref_id && continue  # A person is not a contact of him/herself
         push!(v, id)
     end
+end
+
+"""
+- Sort agents
+- Rewrite their ids in order
+- Return age2first, where agents[age2first[i]] is the first agent with age i
+"""
+function sort_agents!(agents)
+    sort!(agents, by=(x) -> x.age)  # Sort from youngest to oldest
+    age2first = Dict{Int, Int}()    # age => first index containing age
+    current_age = -1
+    for i = 1:length(agents)
+        agent = agents[i]
+        agent.id = i
+        age = agent.age
+        if age != current_age
+            current_age = age
+            age2first[current_age] = i
+        end
+    end
+    age2first
 end
 
 ################################################################################
@@ -209,9 +232,17 @@ end
 ################################################################################
 # Social contacts
 
-function populate_social_contacts!(agents)
-    npeople   = length(agents)
-    ncontacts = 35
+function populate_community_contacts!(agents, ncontacts::Int)
+    npeople = length(agents)
+    g = random_regular_graph(npeople, ncontacts)  # npeople (vertices) each with ncontacts (edges to ncontacts other vertices)
+    adjlist = g.fadjlist
+    for id = 1:npeople
+        agents[id].community = adjlist[id]
+    end
+end
+
+function populate_social_contacts!(agents, ncontacts::Int)
+    npeople = length(agents)
     g = random_regular_graph(npeople, ncontacts)  # npeople (vertices) each with ncontacts (edges to ncontacts other vertices)
     adjlist = g.fadjlist
     for id = 1:npeople

@@ -26,24 +26,24 @@ function schedule!(agent_id, t, event::Symbol, model)
 end
 
 "Execute an event bag"
-function execute!(eb::T, model, t::Int) where {T <: AbstractEventBag}
+function execute!(eb::T, model, t::Int, scenario) where {T <: AbstractEventBag}
     agents = model.agents
     for fname in fieldnames(typeof(eb))
         func, ids = getfield(eb, fname)
         for id in ids
-            func(agents[id], model, t)
+            func(agents[id], model, t, scenario)
         end
     end
 end
 
-function run!(model)
+function run!(model, scenario)
     output, status2rownum = init_output(model)
     collectdata!(model, output, 0, status2rownum)  # t == 0
-    execute!(model.schedule0, model, 0)  # t in (0, 1)
+    execute!(model.schedule0, model, 0, scenario)  # t in (0, 1)
     for t = 1:(model.maxtime - 1)
         model.time = t
         collectdata!(model, output, t, status2rownum)
-        execute!(model.schedule[t], model, t)
+        execute!(model.schedule[t], model, t, scenario)
     end
     collectdata!(model, output, model.maxtime, status2rownum)
     output_to_dataframe(output, status2rownum)

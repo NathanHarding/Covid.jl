@@ -38,7 +38,8 @@ According to the above, when `t=7`:
 
 ## Next
 
-- Contact structure from age and ABS-like data
-- Define and impose social distancing regimes.
+- Implement school and work place contact networks.
+- Update parameters with ABS data.
+- Define social distancing regimes.
 - Solve for parameters.
 - Add other risk factors such as diabetic status, hypertension, BMI, etc.
