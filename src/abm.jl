@@ -14,7 +14,7 @@ using DataFrames
 using Distributions
 
 using ..core
-using ..contactnetworks
+using ..contacts
 
 function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) where {T <: NamedTuple}
     # Init model
@@ -43,7 +43,10 @@ function init_model(indata::Dict{String, DataFrame}, params::T, maxtime, dist0) 
             agents[id] = Person(id, model, cdf0, age)
         end
     end
-    populate_contacts!(agents, indata)
+
+    # Sort agents and populate contacts
+    age2first = sort_agents!(agents)  # agents[age2first[i]] is the first agent with age i
+    populate_contacts!(agents, indata, age2first)
     model
 end
 
@@ -215,6 +218,30 @@ function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, 
         end
     end
     =#
+end
+
+################################################################################
+# Utils
+
+"""
+- Sort agents
+- Rewrite their ids in order
+- Return age2first, where agents[age2first[i]] is the first agent with age i
+"""
+function sort_agents!(agents)
+    sort!(agents, by=(x) -> x.age)  # Sort from youngest to oldest
+    age2first = Dict{Int, Int}()    # age => first index containing age
+    current_age = -1
+    for i = 1:length(agents)
+        agent = agents[i]
+        agent.id = i
+        age = agent.age
+        if age != current_age
+            current_age = age
+            age2first[current_age] = i
+        end
+    end
+    age2first
 end
 
 end
