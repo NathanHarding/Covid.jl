@@ -67,8 +67,19 @@ function push_child!(hh::Household, id)
 end
 
 function populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
-    populate_households_with_children!(agents, age2first, d_nparents, d_nchildren)
-    populate_households_without_children!(agents, age2first, d_nadults_without_children)
+    hh2count = Dict{Tuple{Int, Int}, Int}()  # (nadults, nchildren) => count(households). For evaluation only.
+    populate_households_with_children!(agents, age2first, hh2count, d_nparents, d_nchildren)
+    populate_households_without_children!(agents, age2first, hh2count, d_nadults_without_children)
+#=
+# Evaluation code
+nh = sum(collect(values(hh2count)))
+for (k, v) in hh2count
+    p = 100 * round(v/nh; digits=3)
+    println("$(k)  => $(v),   $(p)%")
+end
+println(nh)
+error("early finish")
+=#
 end
 
 """
@@ -84,7 +95,7 @@ while n_unplaced_children > 0
        - adults at least 20 years older than oldest child
     set household contacts
 """
-function populate_households_with_children!(agents, age2first, d_nparents, d_nchildren)
+function populate_households_with_children!(agents, age2first, hh2count, d_nparents, d_nchildren)
     unplaced_children = Set(1:(age2first[18] - 1))
     unplaced_parents  = Set((age2first[20]):(age2first[55] - 1))  # Parents of children under 18 are adults aged between 20 and 54
     imax = length(unplaced_children)
@@ -125,6 +136,7 @@ function populate_households_with_children!(agents, age2first, d_nparents, d_nch
 
         # Set household contacts
         set_household_contacts!(agents, hh)
+        hh2count[(np, nc)] = haskey(hh2count, (np, nc)) ? hh2count[(np, nc)] + 1 : 1
 
         # Stopping criteria
         isempty(unplaced_children) && break
@@ -142,7 +154,7 @@ while n_unplaced_adults > 0
         - No constraints at the moment
     set household contacts
 """
-function populate_households_without_children!(agents, age2first, d_nadults_without_children)
+function populate_households_without_children!(agents, age2first, hh2count, d_nadults_without_children)
     unplaced_adults = Set([agent.id for agent in agents if isempty(agent.household)])
     imax = length(unplaced_adults)
     for i = 1:imax  # Cap the number of iterations by placing at least 1 child per iteration
@@ -161,6 +173,7 @@ function populate_households_without_children!(agents, age2first, d_nadults_with
 
         # Set household contacts
         set_household_contacts!(agents, hh)
+        hh2count[(na, 0)] = haskey(hh2count, (na, 0)) ? hh2count[(na, 0)] + 1 : 1
 
         # Stopping criteria
         isempty(unplaced_adults) && break
