@@ -26,40 +26,48 @@ function schedule!(agentid::Int, t, event::Function, model)
 end
 
 "Execute a Vector of events"
-function execute!(events, model, t::Int, scenario, metrics, f_unfit::Function, f_fit::Function)
+function execute!(events, model, t::Int, scenario, metrics)
     agents = model.agents
-    n = length(events)
-    for i = 1:n
-        func, id = events[i]
+    i = 1
+    while haskey(events, i)
+        event = events[i]
+        func, id = event
         agent = agents[id]
-        f_unfit(metrics, agent)  # Remove agent's old state from metrics
+        unfit!(metrics, agent)  # Remove agent's old state from metrics
         func(agent, model, t, scenario)
-        f_fit(metrics, agent)    # Add agent's new state to metrics
+        fit!(metrics, agent)    # Add agent's new state to metrics
+        i += 1
     end
 end
 
-function run!(model, scenario, run_number::Int, metrics, output, f_unfit::Function, f_fit::Function)
+function run!(model, scenario, metrics, output)
     maxtime  = model.maxtime
     schedule = model.schedule
     for t = 0:(maxtime - 1)
         model.time = t
         metrics_to_output!(metrics, output, t)  # System as at t
-        execute!(schedule[t], model, t, scenario, metrics, f_unfit, f_fit)  # Events that occur in (t, t+1)
+        execute!(schedule[t], model, t, scenario, metrics)  # Events that occur in (t, t+1)
     end
     metrics_to_output!(metrics, output, maxtime)
 end
 
+unfit!(metrics, agents) = nothing  # To be extended by model-specific method
+fit!(metrics, agents)   = nothing  # To be extended by model-specific method
+
 function init_output(metrics, n)
-    result = DataFrame()
+    result = DataFrame(run=fill(0, n), time=[i for i = 0:(n-1)])
     for (colname, val0) in metrics
         result[!, colname] = Vector{typeof(val0)}(undef, n)
     end
     result
 end
 
-function reset_output!(output::DataFrame)
-    for col in eachcol(output)
-        fill!(col, zero(eltype(col)))
+function reset_output!(output::DataFrame, run_number::Int)
+    fill!(output.run, run_number)
+    for (colname, coldata) in eachcol(output, true)
+        colname == :run  && continue
+        colname == :time && continue
+        fill!(coldata, zero(eltype(coldata)))
     end
 end
 

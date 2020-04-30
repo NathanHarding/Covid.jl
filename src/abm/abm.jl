@@ -8,11 +8,22 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
+export init_output, reset_output!, run!  # Re-exported from the core module
+
 using DataFrames
 using Distributions
 
-using ..core
-using ..contacts
+include(joinpath("..", "core.jl"))
+using .core
+import .core: unfit!  # To be extended by model-specific method
+import .core: fit!    # To be extended by model-specific method
+
+# Model-specific dependencies
+include("config.jl")
+include("contacts.jl")
+
+using .config
+using .contacts
 
 const statuses = [:S, :E, :I, :H, :C, :V, :R, :D]
 const status0  = Symbol[]  # Used when resetting the model at the beginning of a run
@@ -42,7 +53,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
             status     = statuses[rand(d_status0)]
             age        = rand(lb:ub)
             agents[id] = Person(id, status, age)
-            push!(status0, agents[id].status)
+            push!(status0, status)
         end
     end
 
@@ -240,10 +251,12 @@ end
 init_metrics() = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
 
 function reset_metrics!(model, metrics)
+    for (k, v) in metrics
+        metrics[k] = 0
+    end
     for agent in model.agents
         metrics[agent.status] += 1
     end
-    metrics
 end
 
 "Remove the agent's old state from metrics"
