@@ -8,13 +8,14 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export init_model
-
 using DataFrames
 using Distributions
 
 using ..core
 using ..contacts
+
+const statuses = [:S, :E, :I, :H, :C, :V, :R, :D]
+const status0  = Symbol[]  # Used when resetting the model at the beginning of a run
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -27,7 +28,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
 
     # Construct people
     id = 0
-    cdf0 = cumsum(cfg.initial_state_distribution)
+    d_status0   = Categorical(cfg.initial_state_distribution)
     n_agegroups = size(agedist, 1)
     for i = 1:n_agegroups
         agegroup = String(agedist[i, :AgeGroup])  # Example: "Age 0-4", "Age 85+"
@@ -39,8 +40,10 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
         n_agegroup = agedist[i, :Count]
         for j in 1:n_agegroup
             id += 1
-            age = rand(lb:ub)
-            agents[id] = Person(id, model, cdf0, age)
+            status     = statuses[rand(d_status0)]
+            age        = rand(lb:ub)
+            agents[id] = Person(id, status, age)
+            push!(status0, agents[id].status)
         end
     end
 
@@ -48,6 +51,42 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     populate_contacts!(agents, cfg, indata)
     model
 end
+
+function reset_model!(model)
+    # Empty the schedule
+    empty!(model.schedule0)
+    for x in model.schedule
+        empty!(x)
+    end
+
+    # Reset each agent's state and schedule a state change
+    agents = model.agents
+    params = model.params
+    n = length(agents)
+    for id = 1:n
+        agent  = agents[id]
+        status = status0[id]
+        agent.status = status
+        if status == :E
+            dur = dur_E(params, agent.age)
+            schedule!(id, dur, exit_E!, model)
+        elseif status == :I
+            dur = dur_I(params, agent.age)
+            schedule!(id, dur, exit_I!, model)
+        elseif status == :H
+            dur = dur_H(params, agent.age)
+            schedule!(id, dur, exit_H!, model)
+        elseif status == :C
+            dur = dur_C(params, agent.age)
+            schedule!(id, dur, exit_C!, model)
+        elseif status == :V
+            dur = dur_V(params, agent.age)
+            schedule!(id, dur, exit_V!, model)
+        end
+    end
+end
+
+################################################################################
 
 mutable struct Person <: AbstractAgent
     id::Int
@@ -63,44 +102,19 @@ mutable struct Person <: AbstractAgent
     age::Int
 end
 
-function Person(id::Int, model, cdf0::Vector{Float64}, age::Int)
-    params = model.params
-    r = rand()
-    if r <= cdf0[1]
-        status = :S
-    elseif r <= cdf0[2]
-        status = :E
-        dur    = dur_E(params, age)
-        schedule!(id, dur, exit_E!, model)
-    elseif r <= cdf0[3]
-        status = :I
-        dur    = dur_I(params, age)
-        schedule!(id, dur, exit_I!, model)
-    elseif r <= cdf0[4]
-        status = :H
-        dur    = dur_H(params, age)
-        schedule!(id, dur, exit_H!, model)
-    elseif r <= cdf0[5]
-        status = :C
-        dur    = dur_C(params, age)
-        schedule!(id, dur, exit_C!, model)
-    elseif r <= cdf0[6]
-        status = :V
-        dur    = dur_V(params, age)
-        schedule!(id, dur, exit_V!, model)
-    elseif r <= cdf0[7]
-        status = :R
-    else
-        status = :D
-    end
-    Person(id, status, Int[], Int[], Int[], Int[], age)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, Int[], Int[], Int[], Int[], age)
+
+function exit_S!(agent::Person, model, t, scenario)
+    agent.status = :E
+    dur = dur_E(model.params, agent.age)
+    schedule!(agent.id, t + dur, exit_E!, model)
 end
 
 function exit_E!(agent::Person, model, t, scenario)
     agent.status = :I
-    infect_contacts!(agent, model, t, scenario)
     dur = dur_I(model.params, agent.age)
     schedule!(agent.id, t + dur, exit_I!, model)
+    infect_contacts!(agent, model, t, scenario)  # Schedules an immediate status change for each contact
 end
 
 function exit_I!(agent::Person, model, t, scenario)
@@ -217,22 +231,14 @@ end
 
 "Infect contact with probability p_infect."
 function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, t::Int) where {T <: NamedTuple}
-    if contact.status == :S
-        if rand() <= pr_infect
-            contact.status = :E
-            dur = dur_E(params, contact.age)
-            schedule!(contact.id, t + dur, exit_E!, model)
-        end
-    end
-    #=
+    contact.status == :S && rand() <= pr_infect && schedule!(contact.id, t, exit_S!, model)
+#=
     elseif contact.status == :R
         if rand() <= contact.p_reinfection
-            contact.status = :E
-            dur = dur_E(params, contact.age)
-            schedule!(contact.id, t + dur, :exit_E, model)
+            schedule!(contact.id, t, exit_S!, model)
         end
     end
-    =#
+=#
 end
 
 end
