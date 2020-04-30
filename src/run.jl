@@ -25,18 +25,22 @@ function main(configfile::String)
     model  = abm.init_model(indata, params, cfg)
 
     # Run scenarios
+    metrics = abm.init_metrics()
+    output  = init_output(metrics, model.maxtime + 1)
     for (scenarioname, scenario) in cfg.scenarios
         @info "$(now()) Running $(scenarioname) scenario"
         outfile = joinpath(cfg.output_directory, "$(scenarioname).csv")
         for r in 1:cfg.nruns_per_scenario
             abm.reset_model!(model)
+            abm.reset_metrics!(model, metrics)
+            reset_output!(output)
             t0 = now()
-            outdata = run!(model, scenario, r)
+            run!(model, scenario, r, metrics, output, abm.unfit!, abm.fit!)
             t1 = now()
             ms = (t1 - t0).value
             s  = round(0.001*ms; digits=3)
             @info "    Run $(r) took $(s) seconds"
-            CSV.write(outfile, outdata; delim=',', append=r>1)
+            CSV.write(outfile, output; delim=',', append=r>1)
         end
     end
     @info "$(now()) Finished"

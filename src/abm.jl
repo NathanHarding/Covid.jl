@@ -227,14 +227,33 @@ end
 
 "Infect contact with probability p_infect."
 function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, t::Int) where {T <: NamedTuple}
-    contact.status == :S && rand() <= pr_infect && schedule!(contact.id, t, exit_S!, model)
-#=
-    elseif contact.status == :R
-        if rand() <= contact.p_reinfection
-            schedule!(contact.id, t, exit_S!, model)
-        end
+    if contact.status == :S && rand() <= pr_infect
+        schedule!(contact.id, t, exit_S!, model)
+#   elseif contact.status == :R && rand() <= contact.p_reinfection
+#       schedule!(contact.id, t, exit_S!, model)
     end
-=#
+end
+
+################################################################################
+# Metrics
+
+init_metrics() = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+
+function reset_metrics!(model, metrics)
+    for agent in model.agents
+        metrics[agent.status] += 1
+    end
+    metrics
+end
+
+"Remove the agent's old state from metrics"
+function unfit!(metrics, agent::Person)
+    metrics[agent.status] -= 1
+end
+
+"Add the agent's new state to metrics"
+function fit!(metrics, agent::Person)
+    metrics[agent.status] += 1
 end
 
 end

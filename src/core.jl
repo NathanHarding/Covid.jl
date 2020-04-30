@@ -1,10 +1,10 @@
 module core
 
 export Model, AbstractAgent,  # types
-       run!, init_schedule, schedule!
+       init_schedule, init_output, reset_output!,
+       schedule!, run!
 
 using DataFrames
-using Distributions
 
 abstract type AbstractAgent end
 
@@ -26,76 +26,48 @@ function schedule!(agentid::Int, t, event::Function, model)
 end
 
 "Execute a Vector of events"
-function execute!(events, model, t::Int, scenario, metrics)
+function execute!(events, model, t::Int, scenario, metrics, f_unfit::Function, f_fit::Function)
     agents = model.agents
     n = length(events)
     for i = 1:n
         func, id = events[i]
         agent = agents[id]
-        unfit!(metrics, agent)  # Remove agent's old state from metrics
+        f_unfit(metrics, agent)  # Remove agent's old state from metrics
         func(agent, model, t, scenario)
-        fit!(metrics, agent)    # Add agent's new state to metrics
+        f_fit(metrics, agent)    # Add agent's new state to metrics
     end
 end
 
-function run!(model, scenario, run_number::Int)
-    metrics = init_metrics(model)
-    output, status2rownum = init_output(model)
-    for t = 0:(model.maxtime - 1)
+function run!(model, scenario, run_number::Int, metrics, output, f_unfit::Function, f_fit::Function)
+    maxtime  = model.maxtime
+    schedule = model.schedule
+    for t = 0:(maxtime - 1)
         model.time = t
-        metrics_to_output!(metrics, output, t, status2rownum)     # System as at t
-        execute!(model.schedule[t], model, t, scenario, metrics)  # Events that occur in (t, t+1)
+        metrics_to_output!(metrics, output, t)  # System as at t
+        execute!(schedule[t], model, t, scenario, metrics, f_unfit, f_fit)  # Events that occur in (t, t+1)
     end
-    metrics_to_output!(metrics, output, model.maxtime, status2rownum)
-    output_to_dataframe(output, status2rownum, run_number)
+    metrics_to_output!(metrics, output, maxtime)
 end
 
-################################################################################
-# Output
-
-function init_metrics(model)
-    metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
-    for agent in model.agents
-        metrics[agent.status] += 1
+function init_output(metrics, n)
+    result = DataFrame()
+    for (colname, val0) in metrics
+        result[!, colname] = Vector{typeof(val0)}(undef, n)
     end
-    metrics
-end
-
-function unfit!(metrics, agent)
-    metrics[agent.status] -= 1
-end
-
-function fit!(metrics, agent)
-    metrics[agent.status] += 1
-end
-
-function init_output(model)
-    output = fill(0.0, 8, model.maxtime + 1)  # output[:, t] is the observation (SEIHCVRD) at time t
-    status2rownum = Dict(:S => 1, :E => 2, :I => 3, :H => 4, :C => 5, :V => 6, :R => 7, :D => 8)
-    output, status2rownum
-end
-
-function metrics_to_output!(metrics, output, t, status2rownum)
-    j = t + 1
-    for (status, n) in metrics
-        output[status2rownum[status], j] = n
-    end
-end
-
-function output_to_dataframe(output, status2rownum, run_number::Int)
-    ni = size(output, 2)
-    nj = size(output, 1)
-    j2name   = Dict(v => k for (k, v) in status2rownum)
-    colnames = vcat(:time, [j2name[j] for j = 1:nj])
-    result   = DataFrame(fill(Int, length(colnames)), colnames, ni)
-    for i = 1:ni
-        result[i, :time] = i - 1
-        for (j, colname) in j2name
-            result[i, colname] = output[j, i]
-        end
-    end
-    result[!, :run] = fill(run_number, size(result, 1))
     result
+end
+
+function reset_output!(output::DataFrame)
+    for col in eachcol(output)
+        fill!(col, zero(eltype(col)))
+    end
+end
+
+function metrics_to_output!(metrics, output, t)
+    i = t + 1
+    for (colname, val) in metrics
+        output[i, colname] = val
+    end
 end
 
 end
