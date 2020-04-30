@@ -37,7 +37,7 @@ function execute!(events::Vector{Tuple{Function, Int}}, model, t::Int, scenario)
     end
 end
 
-function run!(model, scenario)
+function run!(model, scenario, run_number::Int)
     output, status2rownum = init_output(model)
     collectdata!(model, output, 0, status2rownum)  # t == 0
     execute!(model.schedule0, model, 0, scenario)  # t in (0, 1)
@@ -47,7 +47,7 @@ function run!(model, scenario)
         execute!(model.schedule[t], model, t, scenario)
     end
     collectdata!(model, output, model.maxtime, status2rownum)
-    output_to_dataframe(output, status2rownum)
+    output_to_dataframe(output, status2rownum, run_number)
 end
 
 ################################################################################
@@ -67,7 +67,7 @@ function collectdata!(model, output, t, status2rownum)
     end
 end
 
-function output_to_dataframe(output, status2rownum)
+function output_to_dataframe(output, status2rownum, run_number::Int)
     ni = size(output, 2)
     nj = size(output, 1)
     j2name   = Dict(v => k for (k, v) in status2rownum)
@@ -79,6 +79,7 @@ function output_to_dataframe(output, status2rownum)
             result[i, colname] = output[j, i]
         end
     end
+    result[!, :run] = fill(run_number, size(result, 1))
     result
 end
 

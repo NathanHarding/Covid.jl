@@ -26,17 +26,24 @@ function main(configfile::String)
     status0 = [agent.status for agent in model.agents]  # Initial status for each agent
 
     # Run scenarios
-    i = 0
     for (scenarioname, scenario) in cfg.scenarios
         @info "$(now()) Running $(scenarioname) scenario"
-        i += 1
-        if i >= 2
-            reset_model!(model, status0)
-        end
-        outdata = run!(model, scenario)
         outfile = joinpath(cfg.output_directory, "$(scenarioname).csv")
-        CSV.write(outfile, outdata; delim=',')
-        @info "$(now())     Results written to $(outfile)"
+        for r in 1:cfg.nruns_per_scenario
+            reset_model!(model, status0)
+            t0 = now()
+            outdata = run!(model, scenario, r)
+            t1 = now()
+            ms = (t1 - t0).value
+            s  = round(0.001*ms; digits=3)
+            @info "    Run $(r) took $(s) seconds"
+            CSV.write(outfile, outdata; delim=',', append=r>1)
+#            if r == 1
+#                CSV.write(outfile, outdata; delim=',')
+#            else
+#                CSV.write(outfile, outdata; delim=',', append=true)
+#            end
+        end
     end
     @info "$(now()) Finished"
 end
@@ -46,6 +53,10 @@ function reset_model!(model, status0)
     n = length(agents)
     for i = 1:n
         agents[i].status = status0[i]
+    end
+    empty!(model.schedule0)
+    for x in model.schedule
+        empty!(x)
     end
 end
 

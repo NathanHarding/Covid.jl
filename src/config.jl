@@ -29,27 +29,29 @@ struct Config
     output_directory::String
     initial_state_distribution::Vector{Float64}
     maxtime::Int
+    nruns_per_scenario::Int
     n_social_contacts::Int
     n_community_contacts::Int
     scenarios::Dict{String, Scenario}  # scenario_name => scenario
 
-    function Config(input_data, output_directory, initial_state_distribution, maxtime, n_social_contacts, n_community_contacts, scenarios)
+    function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario, n_social_contacts, n_community_contacts, scenarios)
         for (tablename, datafile) in input_data
             !isfile(datafile) && error("Input data file does not exist: $(datafile)")
         end
         !isdir(output_directory) && error("The output directory does not exist: $(output_directory)")
         length(initial_state_distribution) != 8 && error("Initial state distribution does not have length 8")
         maxtime < 0 && error("maxtime is less than 0")
+        nruns_per_scenario   < 1 && error("nruns_per_scenario is less than 1")
         n_social_contacts    < 0 && error("n_social_contacts must be at least 0")
         n_community_contacts < 0 && error("n_community_contacts must be at least 0")
-        new(input_data, output_directory, initial_state_distribution, maxtime, n_social_contacts, n_community_contacts, scenarios)
+        new(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario, n_social_contacts, n_community_contacts, scenarios)
     end
 end
 
 function Config(configfile::String)
     d = YAML.load_file(configfile)
     scenarios = Dict(nm => Scenario(x) for (nm, x) in d["scenarios"])
-    Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"],
+    Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"], d["nruns_per_scenario"],
            d["n_social_contacts"], d["n_community_contacts"], scenarios)
 end
 
