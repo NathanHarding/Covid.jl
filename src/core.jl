@@ -26,31 +26,48 @@ function schedule!(agentid::Int, t, event::Function, model)
 end
 
 "Execute a Vector of events"
-function execute!(events, model, t::Int, scenario)
+function execute!(events, model, t::Int, scenario, metrics)
     agents = model.agents
     n = length(events)
     for i = 1:n
         func, id = events[i]
         agent = agents[id]
-        #unfit!(metrics, agent)  # Remove agent's old state from metrics
+        unfit!(metrics, agent)  # Remove agent's old state from metrics
         func(agent, model, t, scenario)
-        #fit!(metrics, agent)    # Add agent's new state to metrics
+        fit!(metrics, agent)    # Add agent's new state to metrics
     end
 end
 
 function run!(model, scenario, run_number::Int)
+    metrics = init_metrics(model)
     output, status2rownum = init_output(model)
     for t = 0:(model.maxtime - 1)
         model.time = t
-        collectdata!(model, output, t, status2rownum)    # System as at t
-        execute!(model.schedule[t], model, t, scenario)  # Events that occur in (t, t+1)
+        metrics_to_output!(metrics, output, t, status2rownum)     # System as at t
+        execute!(model.schedule[t], model, t, scenario, metrics)  # Events that occur in (t, t+1)
     end
-    collectdata!(model, output, model.maxtime, status2rownum)
+    metrics_to_output!(metrics, output, model.maxtime, status2rownum)
     output_to_dataframe(output, status2rownum, run_number)
 end
 
 ################################################################################
 # Output
+
+function init_metrics(model)
+    metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+    for agent in model.agents
+        metrics[agent.status] += 1
+    end
+    metrics
+end
+
+function unfit!(metrics, agent)
+    metrics[agent.status] -= 1
+end
+
+function fit!(metrics, agent)
+    metrics[agent.status] += 1
+end
 
 function init_output(model)
     output = fill(0.0, 8, model.maxtime + 1)  # output[:, t] is the observation (SEIHCVRD) at time t
@@ -58,11 +75,10 @@ function init_output(model)
     output, status2rownum
 end
 
-function collectdata!(model, output, t, status2rownum)
+function metrics_to_output!(metrics, output, t, status2rownum)
     j = t + 1
-    agents = model.agents
-    for agent in agents
-        output[status2rownum[agent.status], j] += 1
+    for (status, n) in metrics
+        output[status2rownum[status], j] = n
     end
 end
 
