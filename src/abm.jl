@@ -19,12 +19,11 @@ const status0  = Symbol[]  # Used when resetting the model at the beginning of a
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
-    agedist   = indata["age_distribution"]
-    npeople   = sum(agedist[!, :Count])
-    agents    = Vector{Person}(undef, npeople)
-    schedule0 = Tuple{Function, Int}[]
-    schedule  = [Tuple{Function, Int}[] for t = 1:(cfg.maxtime - 1)]
-    model     = Model(agents, params, 0, cfg.maxtime, schedule0, schedule)
+    agedist  = indata["age_distribution"]
+    npeople  = sum(agedist[!, :Count])
+    agents   = Vector{Person}(undef, npeople)
+    schedule = init_schedule(cfg.maxtime)
+    model    = Model(agents, params, 0, cfg.maxtime, schedule)
 
     # Construct people
     id = 0
@@ -54,10 +53,7 @@ end
 
 function reset_model!(model)
     # Empty the schedule
-    empty!(model.schedule0)
-    for x in model.schedule
-        empty!(x)
-    end
+    model.schedule = init_schedule(model.maxtime)
 
     # Reset each agent's state and schedule a state change
     agents = model.agents

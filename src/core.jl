@@ -1,7 +1,7 @@
 module core
 
 export Model, AbstractAgent,  # types
-       run!, schedule!
+       run!, init_schedule, schedule!
 
 using DataFrames
 using Distributions
@@ -13,23 +13,24 @@ mutable struct Model{A <: AbstractAgent, T <: NamedTuple}
     params::T
     time::Int
     maxtime::Int
-    schedule0::Vector{Tuple{Function, Int}}         # t=0: schedule0   = [(function_01, agentid_01), ...]
-    schedule::Vector{Vector{Tuple{Function, Int}}}  # t>0: schedule[t] = [(function_t1, agentid_t1), ...]
+    schedule::Dict{Int, Dict{Int, Tuple{Function, Int}}}  # t => i => event, where i denotes the order of events
 end
+
+init_schedule(maxtime::Int) = Dict(t => Dict{Int, Tuple{Function, Int}}() for t = 0:(maxtime-1))
 
 "Schedule an event at time t for agent id"
 function schedule!(agentid::Int, t, event::Function, model)
-    if t == 0
-        push!(model.schedule0, (event, agentid))
-    else
-        push!(model.schedule[t], (event, agentid))
-    end
+    s = model.schedule[t]
+    n = length(s)
+    s[n+1] = (event, agentid)
 end
 
 "Execute a Vector of events"
-function execute!(events::Vector{Tuple{Function, Int}}, model, t::Int, scenario)
+function execute!(events, model, t::Int, scenario)
     agents = model.agents
-    for (func, id) in events
+    n = length(events)
+    for i = 1:n
+        func, id = events[i]
         agent = agents[id]
         #unfit!(metrics, agent)  # Remove agent's old state from metrics
         func(agent, model, t, scenario)
@@ -39,12 +40,10 @@ end
 
 function run!(model, scenario, run_number::Int)
     output, status2rownum = init_output(model)
-    collectdata!(model, output, 0, status2rownum)  # t == 0
-    execute!(model.schedule0, model, 0, scenario)  # t in (0, 1)
-    for t = 1:(model.maxtime - 1)
+    for t = 0:(model.maxtime - 1)
         model.time = t
-        collectdata!(model, output, t, status2rownum)
-        execute!(model.schedule[t], model, t, scenario)
+        collectdata!(model, output, t, status2rownum)    # System as at t
+        execute!(model.schedule[t], model, t, scenario)  # Events that occur in (t, t+1)
     end
     collectdata!(model, output, model.maxtime, status2rownum)
     output_to_dataframe(output, status2rownum, run_number)

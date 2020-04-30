@@ -4,7 +4,7 @@ input_data:
     age_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\age_distribution.csv"
     household_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\household_distribution.csv"
 maxtime: 180
-nruns_per_scenario: 1
+nruns_per_scenario: 4
 initial_state_distribution: [0.98, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SEIHCVRD
 n_social_contacts: 35
 n_community_contacts: 20
