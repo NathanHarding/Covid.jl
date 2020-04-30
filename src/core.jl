@@ -25,28 +25,27 @@ function schedule!(agentid::Int, t, event::Function, model)
     s[n+1] = (event, agentid)
 end
 
-"Execute a Vector of events"
-function execute!(events, model, t::Int, scenario, metrics)
-    agents = model.agents
-    i = 1
-    while haskey(events, i)
-        event = events[i]
-        func, id = event
-        agent = agents[id]
-        unfit!(metrics, agent)  # Remove agent's old state from metrics
-        func(agent, model, t, scenario)
-        fit!(metrics, agent)    # Add agent's new state to metrics
-        i += 1
-    end
+function execute!(event::Tuple{Function, Int}, agents, model, t, scenario, metrics)
+    func, id = event
+    agent = agents[id]
+    unfit!(metrics, agent)  # Remove agent's old state from metrics
+    func(agent, model, t, scenario)
+    fit!(metrics, agent)    # Add agent's new state to metrics
 end
 
 function run!(model, scenario, metrics, output)
     maxtime  = model.maxtime
     schedule = model.schedule
+    agents   = model.agents
     for t = 0:(maxtime - 1)
         model.time = t
         metrics_to_output!(metrics, output, t)  # System as at t
-        execute!(schedule[t], model, t, scenario, metrics)  # Events that occur in (t, t+1)
+        events = schedule[t]
+        k      = 1
+        while haskey(events, k)
+            execute!(events[k], agents, model, t, scenario, metrics)
+            k += 1
+        end
     end
     metrics_to_output!(metrics, output, maxtime)
 end
