@@ -21,8 +21,8 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     agedist   = indata["age_distribution"]
     npeople   = sum(agedist[!, :Count])
     agents    = Vector{Person}(undef, npeople)
-    schedule0 = EventBag()
-    schedule  = [EventBag() for t = 1:(cfg.maxtime - 1)]
+    schedule0 = Tuple{Function, Int}[]
+    schedule  = [Tuple{Function, Int}[] for t = 1:(cfg.maxtime - 1)]
     model     = Model(agents, params, 0, cfg.maxtime, schedule0, schedule)
 
     # Construct people
@@ -71,23 +71,23 @@ function Person(id::Int, model, cdf0::Vector{Float64}, age::Int)
     elseif r <= cdf0[2]
         status = :E
         dur    = dur_E(params, age)
-        schedule!(id, dur, :exit_E, model)
+        schedule!(id, dur, exit_E!, model)
     elseif r <= cdf0[3]
         status = :I
         dur    = dur_I(params, age)
-        schedule!(id, dur, :exit_I, model)
+        schedule!(id, dur, exit_I!, model)
     elseif r <= cdf0[4]
         status = :H
         dur    = dur_H(params, age)
-        schedule!(id, dur, :exit_H, model)
+        schedule!(id, dur, exit_H!, model)
     elseif r <= cdf0[5]
         status = :C
         dur    = dur_C(params, age)
-        schedule!(id, dur, :exit_C, model)
+        schedule!(id, dur, exit_C!, model)
     elseif r <= cdf0[6]
         status = :V
         dur    = dur_V(params, age)
-        schedule!(id, dur, :exit_V, model)
+        schedule!(id, dur, exit_V!, model)
     elseif r <= cdf0[7]
         status = :R
     else
@@ -96,21 +96,11 @@ function Person(id::Int, model, cdf0::Vector{Float64}, age::Int)
     Person(id, status, Int[], Int[], Int[], Int[], age)
 end
 
-struct EventBag <: AbstractEventBag
-    exit_E::Tuple{Function, Vector{Int}}
-    exit_I::Tuple{Function, Vector{Int}}
-    exit_H::Tuple{Function, Vector{Int}}
-    exit_C::Tuple{Function, Vector{Int}}
-    exit_V::Tuple{Function, Vector{Int}}
-end
-
-EventBag() = EventBag((exit_E!, Int[]), (exit_I!, Int[]), (exit_H!, Int[]), (exit_C!, Int[]), (exit_V!, Int[]))
-
 function exit_E!(agent::Person, model, t, scenario)
     agent.status = :I
     infect_contacts!(agent, model, t, scenario)
     dur = dur_I(model.params, agent.age)
-    schedule!(agent.id, t + dur, :exit_I, model)
+    schedule!(agent.id, t + dur, exit_I!, model)
 end
 
 function exit_I!(agent::Person, model, t, scenario)
@@ -119,7 +109,7 @@ function exit_I!(agent::Person, model, t, scenario)
     if rand() <= p_H(params, age)
         agent.status = :H
         dur = dur_H(params, age)
-        schedule!(agent.id, t + dur, :exit_H, model)
+        schedule!(agent.id, t + dur, exit_H!, model)
     else
         agent.status = :R
     end
@@ -131,7 +121,7 @@ function exit_H!(agent::Person, model, t, scenario)
     if rand() <= p_C(params, age)
         agent.status = :C
         dur = dur_C(params, age)
-        schedule!(agent.id, t + dur, :exit_C, model)
+        schedule!(agent.id, t + dur, exit_C!, model)
     else
         agent.status = :R
     end
@@ -143,7 +133,7 @@ function exit_C!(agent::Person, model, t, scenario)
     if rand() <= p_V(params, age)
         agent.status = :V
         dur = dur_V(params, age)
-        schedule!(agent.id, t + dur, :exit_V, model)
+        schedule!(agent.id, t + dur, exit_V!, model)
     else
         agent.status = :R
     end
@@ -231,7 +221,7 @@ function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, 
         if rand() <= pr_infect
             contact.status = :E
             dur = dur_E(params, contact.age)
-            schedule!(contact.id, t + dur, :exit_E, model)
+            schedule!(contact.id, t + dur, exit_E!, model)
         end
     end
     #=

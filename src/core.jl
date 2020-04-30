@@ -1,38 +1,39 @@
 module core
 
-export Model, AbstractAgent, AbstractEventBag,  # types
+export Model, AbstractAgent,  # types
        run!, schedule!
 
 using DataFrames
 using Distributions
 
 abstract type AbstractAgent end
-abstract type AbstractEventBag end  # An instance is a set of events that occur simultaneously
 
-mutable struct Model{A <: AbstractAgent, E <: AbstractEventBag, T <: NamedTuple}
+mutable struct Model{A <: AbstractAgent, T <: NamedTuple}
     agents::Vector{A}
     params::T
     time::Int
     maxtime::Int
-    schedule0::E         # Events that take place during (0, 1)
-    schedule::Vector{E}  # Events that take place during (1, maxtime)
+    schedule0::Vector{Tuple{Function, Int}}         # t=0: schedule0   = [(function_01, agentid_01), ...]
+    schedule::Vector{Vector{Tuple{Function, Int}}}  # t>0: schedule[t] = [(function_t1, agentid_t1), ...]
 end
 
 "Schedule an event at time t for agent id"
-function schedule!(agent_id, t, event::Symbol, model)
-    eb = t == 0 ? model.schedule0 : model.schedule[t]
-    func, ids = getfield(eb, event)
-    push!(ids, agent_id)
+function schedule!(agentid::Int, t, event::Function, model)
+    if t == 0
+        push!(model.schedule0, (event, agentid))
+    else
+        push!(model.schedule[t], (event, agentid))
+    end
 end
 
-"Execute an event bag"
-function execute!(eb::T, model, t::Int, scenario) where {T <: AbstractEventBag}
+"Execute a Vector of events"
+function execute!(events::Vector{Tuple{Function, Int}}, model, t::Int, scenario)
     agents = model.agents
-    for fname in fieldnames(typeof(eb))
-        func, ids = getfield(eb, fname)
-        for id in ids
-            func(agents[id], model, t, scenario)
-        end
+    for (func, id) in events
+        agent = agents[id]
+        #unfit!(metrics, agent)  # Remove agent's old state from metrics
+        func(agent, model, t, scenario)
+        #fit!(metrics, agent)    # Add agent's new state to metrics
     end
 end
 
