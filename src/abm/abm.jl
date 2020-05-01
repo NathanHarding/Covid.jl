@@ -8,7 +8,7 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export init_output, reset_output!, run!  # Re-exported from the core module
+export init_output, reset_output!, run_model!  # Re-exported from the core module
 
 using DataFrames
 using Distributions
@@ -27,6 +27,16 @@ using .contacts
 
 const statuses = [:S, :E, :I, :H, :C, :V, :R, :D]
 const status0  = Symbol[]  # Used when resetting the model at the beginning of a run
+const scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
+const metrics  = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+
+function update!(s::Scenario)
+    scenario.household = s.household
+    scenario.school    = s.school
+    scenario.workplace = s.workplace
+    scenario.community = s.community
+    scenario.social    = s.social
+end
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -111,20 +121,20 @@ end
 
 Person(id::Int, status::Symbol, age::Int) = Person(id, status, Int[], Int[], Int[], Int[], age)
 
-function exit_S!(agent::Person, model, t, scenario)
+function exit_S!(agent::Person, model, t)
     agent.status = :E
     dur = dur_E(model.params, agent.age)
     schedule!(agent.id, t + dur, exit_E!, model)
 end
 
-function exit_E!(agent::Person, model, t, scenario)
+function exit_E!(agent::Person, model, t)
     agent.status = :I
     dur = dur_I(model.params, agent.age)
     schedule!(agent.id, t + dur, exit_I!, model)
-    infect_contacts!(agent, model, t, scenario)  # Schedules an immediate status change for each contact
+    infect_contacts!(agent, model, t)  # Schedules an immediate status change for each contact
 end
 
-function exit_I!(agent::Person, model, t, scenario)
+function exit_I!(agent::Person, model, t)
     params = model.params
     age    = agent.age
     if rand() <= p_H(params, age)
@@ -136,7 +146,7 @@ function exit_I!(agent::Person, model, t, scenario)
     end
 end
 
-function exit_H!(agent::Person, model, t, scenario)
+function exit_H!(agent::Person, model, t)
     params = model.params
     age    = agent.age
     if rand() <= p_C(params, age)
@@ -148,7 +158,7 @@ function exit_H!(agent::Person, model, t, scenario)
     end
 end
 
-function exit_C!(agent::Person, model, t, scenario)
+function exit_C!(agent::Person, model, t)
     params = model.params
     age    = agent.age
     if rand() <= p_V(params, age)
@@ -160,7 +170,7 @@ function exit_C!(agent::Person, model, t, scenario)
     end
 end
 
-function exit_V!(agent::Person, model, t, scenario)
+function exit_V!(agent::Person, model, t)
     agent.status = rand() <= p_D(model.params, agent.age) ? :D : :R
 end
 
@@ -192,65 +202,62 @@ p_D(params, age) = 1.0 / (1.0 + exp(-(params.a0_D + params.a1_D * age)))  # Pr(N
 
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
-function infect_contacts!(agent::Person, model, t::Int, scenario)
+function infect_contacts!(agent::Person, model, t::Int)
     agents      = model.agents
-    params      = model.params
     age         = agent.age
-    pr_infect   = p_infect(params, age)
+    pr_infect   = p_infect(model.params, age)
     p_workplace = age <= 17 ? scenario.school : scenario.workplace
-    infect_household_contacts!(scenario.household, pr_infect, params, agent, agents, model, t)
-    infect_workplace_contacts!(p_workplace,        pr_infect, params, agent, agents, model, t)
-    infect_community_contacts!(scenario.community, pr_infect, params, agent, agents, model, t)
-    infect_social_contacts!(scenario.social,       pr_infect, params, agent, agents, model, t)
+    infect_household_contacts!(scenario.household, pr_infect, agent, agents, model, t)
+    infect_workplace_contacts!(p_workplace,        pr_infect, agent, agents, model, t)
+    infect_community_contacts!(scenario.community, pr_infect, agent, agents, model, t)
+    infect_social_contacts!(scenario.social,       pr_infect, agent, agents, model, t)
 end
 
-function infect_household_contacts!(p_household, pr_infect, params, agent, agents, model, t)
+function infect_household_contacts!(p_household, pr_infect, agent, agents, model, t)
     p_household == 0.0 && return
     for id in agent.household
         rand() > p_household && continue
-        infect_contact!(pr_infect, params, agents[id], model, t)
+        infect_contact!(pr_infect, agents[id], model, t)
     end
 end
 
-function infect_workplace_contacts!(p_workplace, pr_infect, params, agent, agents, model, t)
+function infect_workplace_contacts!(p_workplace, pr_infect, agent, agents, model, t)
     p_workplace == 0.0 && return
     for id in agent.work
         rand() > p_workplace && continue
-        infect_contact!(pr_infect, params, agents[id], model, t)
+        infect_contact!(pr_infect, agents[id], model, t)
     end
 end
 
-function infect_community_contacts!(p_community, pr_infect, params, agent, agents, model, t)
+function infect_community_contacts!(p_community, pr_infect, agent, agents, model, t)
     p_community == 0.0 && return
     for id in agent.community
         rand() > p_community && continue
-        infect_contact!(pr_infect, params, agents[id], model, t)
+        infect_contact!(pr_infect, agents[id], model, t)
     end
 end
 
-function infect_social_contacts!(p_social, pr_infect, params, agent, agents, model, t)
+function infect_social_contacts!(p_social, pr_infect, agent, agents, model, t)
     p_social == 0.0 && return
     for id in agent.social
         rand() > p_social && continue
-        infect_contact!(pr_infect, params, agents[id], model, t)
+        infect_contact!(pr_infect, agents[id], model, t)
     end
 end
 
 "Infect contact with probability p_infect."
-function infect_contact!(pr_infect::Float64, params::T, contact::Person, model, t::Int) where {T <: NamedTuple}
+function infect_contact!(pr_infect::Float64, contact::Person, model, t::Int)
     if contact.status == :S && rand() <= pr_infect
-        schedule!(contact.id, t, exit_S!, model)
+        execute_event!(exit_S!, contact, model, t, metrics)
 #   elseif contact.status == :R && rand() <= contact.p_reinfection
-#       schedule!(contact.id, t, exit_S!, model)
+#       execute_event!(exit_S!, contact, model, t, metrics)
     end
 end
 
 ################################################################################
 # Metrics
 
-init_metrics() = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
-
-function reset_metrics!(model, metrics)
+function reset_metrics!(model)
     for (k, v) in metrics
         metrics[k] = 0
     end

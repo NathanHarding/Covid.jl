@@ -41,5 +41,6 @@ According to the above, when `t=7`:
 - Implement school and work place contact networks.
 - Update parameters with ABS data.
 - Define social distancing regimes.
+- Implement time-dependent regimes.
 - Solve for parameters.
 - Add other risk factors such as diabetic status, hypertension, BMI, etc.

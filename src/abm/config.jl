@@ -1,10 +1,10 @@
 module config
 
-export Config
+export Config, Scenario
 
 using YAML
 
-struct Scenario
+mutable struct Scenario
     household::Float64
     school::Float64
     workplace::Float64
@@ -32,9 +32,11 @@ struct Config
     nruns_per_scenario::Int
     n_social_contacts::Int
     n_community_contacts::Int
+    n_workplace_contacts::Int
     scenarios::Dict{String, Scenario}  # scenario_name => scenario
 
-    function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario, n_social_contacts, n_community_contacts, scenarios)
+    function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
+                    n_social_contacts, n_community_contacts, n_workplace_contacts, scenarios)
         for (tablename, datafile) in input_data
             !isfile(datafile) && error("Input data file does not exist: $(datafile)")
         end
@@ -44,7 +46,9 @@ struct Config
         nruns_per_scenario   < 1 && error("nruns_per_scenario is less than 1")
         n_social_contacts    < 0 && error("n_social_contacts must be at least 0")
         n_community_contacts < 0 && error("n_community_contacts must be at least 0")
-        new(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario, n_social_contacts, n_community_contacts, scenarios)
+        n_workplace_contacts < 0 && error("n_workplace_contacts must be at least 0")
+        new(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
+            n_social_contacts, n_community_contacts, n_workplace_contacts, scenarios)
     end
 end
 
@@ -52,7 +56,7 @@ function Config(configfile::String)
     d = YAML.load_file(configfile)
     scenarios = Dict(nm => Scenario(x) for (nm, x) in d["scenarios"])
     Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"], d["nruns_per_scenario"],
-           d["n_social_contacts"], d["n_community_contacts"], scenarios)
+           d["n_social_contacts"], d["n_community_contacts"], d["n_workplace_contacts"], scenarios)
 end
 
 end

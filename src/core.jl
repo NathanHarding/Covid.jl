@@ -2,7 +2,7 @@ module core
 
 export Model, AbstractAgent,  # types
        init_schedule, init_output, reset_output!,
-       schedule!, run!
+       schedule!, execute_event!, run_model!
 
 using DataFrames
 
@@ -25,27 +25,29 @@ function schedule!(agentid::Int, t, event::Function, model)
     s[n+1] = (event, agentid)
 end
 
-function execute!(event::Tuple{Function, Int}, agents, model, t, scenario, metrics)
-    func, id = event
-    agent = agents[id]
+function execute_event!(func::Function, agent, model, t, metrics)
     unfit!(metrics, agent)  # Remove agent's old state from metrics
-    func(agent, model, t, scenario)
+    func(agent, model, t)
     fit!(metrics, agent)    # Add agent's new state to metrics
 end
 
-function run!(model, scenario, metrics, output)
+function execute_events!(events, agents, model, t, metrics)
+    k = 1
+    while haskey(events, k)
+        func, id = events[k]
+        execute_event!(func, agents[id], model, t, metrics)
+        k += 1
+    end
+end
+
+function run_model!(model, metrics, output)
     maxtime  = model.maxtime
     schedule = model.schedule
     agents   = model.agents
     for t = 0:(maxtime - 1)
         model.time = t
         metrics_to_output!(metrics, output, t)  # System as at t
-        events = schedule[t]
-        k      = 1
-        while haskey(events, k)
-            execute!(events[k], agents, model, t, scenario, metrics)
-            k += 1
-        end
+        execute_events!(schedule[t], agents, model, t, metrics)
     end
     metrics_to_output!(metrics, output, maxtime)
 end

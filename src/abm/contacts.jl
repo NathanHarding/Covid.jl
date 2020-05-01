@@ -6,11 +6,18 @@ using Distributions
 using LightGraphs
 
 function populate_contacts!(agents, cfg, indata)
+    # Data
     age2first   = sort_agents!(agents)  # agents[age2first[i]] is the first agent with age i
     d_nparents  = Categorical([0.26, 0.74])
     d_nchildren = Categorical([0.33, 0.4, 0.25, 0.01, 0.005, 0.005])
     d_nadults_without_children = Categorical([0.42, 0.47, 0.04, 0.04, 0.02, 0.01])
+    workplace_sizes  = Dict(1 => 2, 2 => 10, 3 => 50, 4 => 200, 5 => 500, 6 => 100, 7 => 2000)
+    d_workplace_size = Categorical([0.25, 0.25, 0.25, 0.15, 0.05, 0.03, 0.02])  # Categories are: 2, 10, 50, 200, 500, 1000, 2000
+    class_size = 20
+
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
+    populate_school_contacts!()
+    populate_workplace_contacts!(agents, cfg.n_workplace_contacts, d_workplace_size, workplace_sizes)
     populate_community_contacts!(agents, cfg.n_community_contacts)
     populate_social_contacts!(agents, cfg.n_social_contacts)
 end
@@ -226,6 +233,54 @@ function set_household_contacts!(agents, household)
     for child in children
         append_contacts!(agents[child], :household, adults)
         append_contacts!(agents[child], :household, children)
+    end
+end
+
+################################################################################
+# School contacts for teachers and people under 23
+
+mutable struct ChildCareCentre
+    max_nteachers::Int
+    max_children_per_level::Int
+    teachers::Vector{Int}
+    level2children::Dict{Int, Vector{Int}}  # age => [childid1, ...]
+end
+
+function isfull(cc::ChildCareCentre)
+    
+end
+
+################################################################################
+# Workplace contacts
+
+function populate_workplace_contacts!(agents, ncontacts::Int, d_workplace_size, workplace_sizes::Dict{Int, Int})
+    nagents = size(agents, 1)
+    adultid = 0
+    workplace_size  = workplace_sizes[rand(d_workplace_size)]
+    adultid2agentid = Dict{Int, Int}()
+    for agent in agents
+        agent.age <= 23             && continue  # People under 23 are assumed to be in education not the workplace
+        length(agent.workplace) > 0 && continue  # Adult is employed at a school
+        adultid += 1
+        adultid2agentid[adultid] = agent.id
+        if adultid == workplace_size
+            assign_workplace_contacts!(agents, min(ncontacts, workplace_size), adultid2agentid)
+            adultid = 0
+            adultid2agentid = Dict{Int, Int}()
+            workplace_size  = workplace_sizes[rand(d_workplace_size)]
+        end
+    end
+end
+
+function assign_workplace_contacts!(agents, ncontacts::Int, adultid2agentid)
+    g = random_regular_graph(length(adultid2agentid), ncontacts)  # nadults (vertices) each with ncontacts (edges to ncontacts other vertices)
+    adjlist = g.fadjlist
+    for (adultid, agentid) in adultid2agentid
+        contactlist = adjlist[adultid]  # Contact list as adultid domain...convert to agentid domain
+        agent = agents[agentid]
+        for id in contactlist
+            push!(agent.workplace, adultid2agentid[id])
+        end
     end
 end
 
