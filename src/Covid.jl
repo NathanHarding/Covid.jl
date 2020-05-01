@@ -16,23 +16,31 @@ function main(configfile::String)
     indata = import_data(cfg.input_data)
 
     @info "$(now()) Initialising model"
-    params = construct_params(indata["params"])
-    model  = abm.init_model(indata, params, cfg)
+    params  = construct_params(indata["params"])
+    model   = abm.init_model(indata, params, cfg)
+    maxtime = model.maxtime
+    agents  = model.agents
 
     @info "$(now()) Initialising output data"
-    output = init_output(abm.metrics, model.maxtime + 1)  # Core function
+    metrics = abm.metrics
+    output  = init_output(metrics, maxtime + 1)
 
     # Run scenarios
-    for (scenarioname, scenario) in cfg.scenarios
+    for (scenarioname, t2scenario) in cfg.scenarios
         @info "$(now()) Running $(scenarioname) scenario"
-        abm.update!(scenario)
         outfile = joinpath(cfg.output_directory, "$(scenarioname).csv")
         for r in 1:cfg.nruns_per_scenario
             @info "$(now())    Starting run $(r)"
             abm.reset_model!(model)
             abm.reset_metrics!(model)
-            reset_output!(output, r)                # Core function
-            run_model!(model, abm.metrics, output)  # Core function
+            reset_output!(output, r)
+            for t = 0:(maxtime - 1)
+                model.time = t
+                metrics_to_output!(metrics, output, t)    # System as at t
+                haskey(t2scenario, t) && abm.update_active_scenario!(t2scenario[t])
+                execute_events!(model.schedule[t], agents, model, t, metrics)
+            end
+            metrics_to_output!(metrics, output, maxtime)  # System as at maxtime
             CSV.write(outfile, output; delim=',', append=r>1)
         end
     end

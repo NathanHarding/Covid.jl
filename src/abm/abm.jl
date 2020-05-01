@@ -8,7 +8,7 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export init_output, reset_output!, run_model!  # Re-exported from the core module
+export init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module
 
 using DataFrames
 using Distributions
@@ -27,15 +27,15 @@ using .contacts
 
 const statuses = [:S, :E, :I, :H, :C, :V, :R, :D]
 const status0  = Symbol[]  # Used when resetting the model at the beginning of a run
-const scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 const metrics  = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
-function update!(s::Scenario)
-    scenario.household = s.household
-    scenario.school    = s.school
-    scenario.workplace = s.workplace
-    scenario.community = s.community
-    scenario.social    = s.social
+function update_active_scenario!(scenario::Scenario)
+    active_scenario.household = scenario.household
+    active_scenario.school    = scenario.school
+    active_scenario.workplace = scenario.workplace
+    active_scenario.community = scenario.community
+    active_scenario.social    = scenario.social
 end
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
@@ -206,11 +206,11 @@ function infect_contacts!(agent::Person, model, t::Int)
     agents      = model.agents
     age         = agent.age
     pr_infect   = p_infect(model.params, age)
-    p_workplace = age <= 17 ? scenario.school : scenario.workplace
-    infect_household_contacts!(scenario.household, pr_infect, agent, agents, model, t)
-    infect_workplace_contacts!(p_workplace,        pr_infect, agent, agents, model, t)
-    infect_community_contacts!(scenario.community, pr_infect, agent, agents, model, t)
-    infect_social_contacts!(scenario.social,       pr_infect, agent, agents, model, t)
+    p_workplace = age <= 23 ? active_scenario.school : active_scenario.workplace
+    infect_household_contacts!(active_scenario.household, pr_infect, agent, agents, model, t)
+    infect_workplace_contacts!(p_workplace,               pr_infect, agent, agents, model, t)
+    infect_community_contacts!(active_scenario.community, pr_infect, agent, agents, model, t)
+    infect_social_contacts!(active_scenario.social,       pr_infect, agent, agents, model, t)
 end
 
 function infect_household_contacts!(p_household, pr_infect, agent, agents, model, t)

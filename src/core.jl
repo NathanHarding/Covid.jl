@@ -2,7 +2,7 @@ module core
 
 export Model, AbstractAgent,  # types
        init_schedule, init_output, reset_output!,
-       schedule!, execute_event!, run_model!
+       schedule!, execute_event!, execute_events!, metrics_to_output!
 
 using DataFrames
 
@@ -38,18 +38,6 @@ function execute_events!(events, agents, model, t, metrics)
         execute_event!(func, agents[id], model, t, metrics)
         k += 1
     end
-end
-
-function run_model!(model, metrics, output)
-    maxtime  = model.maxtime
-    schedule = model.schedule
-    agents   = model.agents
-    for t = 0:(maxtime - 1)
-        model.time = t
-        metrics_to_output!(metrics, output, t)  # System as at t
-        execute_events!(schedule[t], agents, model, t, metrics)
-    end
-    metrics_to_output!(metrics, output, maxtime)
 end
 
 unfit!(metrics, agents) = nothing  # To be extended by model-specific method

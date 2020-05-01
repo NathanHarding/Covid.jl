@@ -35,7 +35,7 @@ struct Config
     ncontacts_s2s::Int  # Number of student-to-student contacts
     ncontacts_t2t::Int  # Number of teacher-to-teacher contacts
     ncontacts_t2s::Int  # Number of teacher-to-student contacts
-    scenarios::Dict{String, Scenario}  # scenario_name => scenario
+    scenarios::Dict{String, Dict{Int, Scenario}}  # scenario_name => t => scenario
 
     function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
                     n_social_contacts, n_community_contacts, n_workplace_contacts, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s, scenarios)
@@ -59,7 +59,13 @@ end
 
 function Config(configfile::String)
     d = YAML.load_file(configfile)
-    scenarios = Dict(nm => Scenario(x) for (nm, x) in d["scenarios"])
+    scenarios = Dict{String, Dict{Int, Scenario}}()
+    for (nm, t2scenario) in d["scenarios"]
+        scenarios[nm] = Dict{Int, Scenario}()
+        for (t, scenario) in t2scenario
+            scenarios[nm][t] = Scenario(scenario)
+        end
+    end
     Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"], d["nruns_per_scenario"],
            d["n_social_contacts"], d["n_community_contacts"], d["n_workplace_contacts"], d["ncontacts_s2s"], d["ncontacts_t2t"], d["ncontacts_t2s"], scenarios)
 end
