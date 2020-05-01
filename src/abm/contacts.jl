@@ -14,9 +14,10 @@ function populate_contacts!(agents, cfg, indata)
     workplace_sizes  = Dict(1 => 2, 2 => 10, 3 => 50, 4 => 200, 5 => 500, 6 => 100, 7 => 2000)
     d_workplace_size = Categorical([0.25, 0.25, 0.25, 0.15, 0.05, 0.03, 0.02])  # Categories are: 2, 10, 50, 200, 500, 1000, 2000
     d_max_nstudents_per_level = Categorical([0.1, 0.4, 0.4, 0.1])  # Categories are: 15, 20, 25, 30
+    student_level_sizes       = Dict(1 => 15, 2 => 20, 3 => 25, 4 => 30)
 
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
-    populate_school_contacts!(agents, age2first, d_max_nstudents_per_level)
+    populate_school_contacts!(agents, age2first, d_max_nstudents_per_level, student_level_sizes, cfg.ncontacts_s2s, cfg.ncontacts_t2t, cfg.ncontacts_t2s)
     populate_workplace_contacts!(agents, cfg.n_workplace_contacts, d_workplace_size, workplace_sizes)
     populate_community_contacts!(agents, cfg.n_community_contacts)
     populate_social_contacts!(agents, cfg.n_social_contacts)
@@ -42,7 +43,7 @@ end
 "Randomly assign ncontacts to each agent in agents."
 function assign_contacts_regulargraph!(agents, contactcategory::Symbol, ncontacts::Int)
     npeople   = length(agents)
-    ncontacts = ncontacts > npeople - 1 ? npeople - 1 : ncontacts
+    ncontacts = adjust_ncontacts_for_regular_graph(npeople, ncontacts)  # Ensure a regular graph can be constructed
     g         = random_regular_graph(npeople, ncontacts)  # npeople (vertices) each with ncontacts (edges to ncontacts other vertices)
     adjlist   = g.fadjlist
     for agent in agents
@@ -53,7 +54,7 @@ end
 "Randomly assign ncontacts to each agent whose id is a value of vertexid2agentid."
 function assign_contacts_regulargraph!(agents, contactcategory::Symbol, ncontacts::Int, vertexid2agentid)
     nvertices = length(vertexid2agentid)
-    ncontacts = ncontacts > nvertices - 1 ? nvertices - 1 : ncontacts
+    ncontacts = adjust_ncontacts_for_regular_graph(nvertices, ncontacts)  # Ensure a regular graph can be constructed
     g = random_regular_graph(nvertices, ncontacts)  # nvertices each with ncontacts (edges to ncontacts other vertices)
     adjlist = g.fadjlist
     for (vertexid, agentid) in vertexid2agentid
@@ -63,6 +64,21 @@ function assign_contacts_regulargraph!(agents, contactcategory::Symbol, ncontact
             append_contact!(agentid, vertexid2agentid[vertexid], contactlist_agent)
         end
     end
+end
+
+"""
+Require these conditions:
+1. nvertices >= 1
+2. ncontacts <= nvertices - 1
+3. iseven(nvertices * ncontacts)
+
+If required adjust ncontacts.
+Return ncontacts.
+"""
+function adjust_ncontacts_for_regular_graph(nvertices, ncontacts)
+    nvertices == 0 && error("The number of vertices must be at least 1")
+    ncontacts = ncontacts > nvertices - 1 ? nvertices - 1 : ncontacts
+    iseven(nvertices * ncontacts) ? ncontacts : ncontacts - 1
 end
 
 """
@@ -334,7 +350,7 @@ function push_student!(school::School, id::Int, age::Int)
     true  # Success
 end
 
-function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level)
+function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level, student_level_sizes, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s)
     min_teacher_age   = 24
     max_teacher_age   = 65
     unplaced_students = Dict(age => Set(age2first[age]:(age2first[age+1] - 1)) for age = 0:23)
@@ -351,18 +367,18 @@ function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level)
         isnothing(agentid) && break  # STOPPING CRITERION: There are no unplaced students remaining
         student    = agents[agentid]
         schooltype = determine_schooltype(student.age)
-        school     = School(schooltype, rand(d_max_nstudents_per_level))
+        max_nstudents_per_level = student_level_sizes[rand(d_max_nstudents_per_level)]
+        school     = School(schooltype, max_nstudents_per_level)
 
         # Fill student positions
-        age2students            = school.age2students
-        max_nstudents_per_level = school.max_nstudents_per_level
+        age2students = school.age2students
         for (age, students) in age2students
             n_available = max_nstudents_per_level - length(students)  # Number of available positions
             for j = 1:n_available
                 isempty(unplaced_students[age]) && break
                 studentid = sample_person(unplaced_students[age], age, age, agents, age2first)
                 pop!(unplaced_students[age], studentid)
-                push_student!(school, studentid)
+                push_student!(school, studentid, age)
             end
         end
 
@@ -376,9 +392,9 @@ function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level)
         end
 
         # Set contact lists
-        set_student_to_student_contacts!()
-        set_teacher_to_student_contacts!()
-        set_teacher_to_teacher_contacts!()
+        set_student_to_student_contacts!(agents, school, ncontacts_s2s)
+        set_teacher_to_student_contacts!(agents, school, ncontacts_t2s)
+        set_teacher_to_teacher_contacts!(agents, school, ncontacts_t2t)
     end
 end
 
@@ -393,10 +409,46 @@ end
 function set_student_to_student_contacts!(agents, school::School, ncontacts_s2s::Int)
     age2students = school.age2students
     for (age, students) in age2students
-        append_contacts!(agents[studentid], :workplace, adults)
-
-        assign_contacts_regulargraph!(agents, :workplace, min(ncontacts_s2s, workplace_size), adultid2agentid)
+        isempty(students) && continue
+        nstudents        = length(students)
+        vertexid2agentid = Dict(i => students[i] for i = 1:nstudents)
+        assign_contacts_regulargraph!(agents, :workplace, min(ncontacts_s2s, nstudents), vertexid2agentid)
     end
+end
+
+function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s::Int)
+    # Construct a vector of studentids
+    studentids = Int[]
+    for (age, students) in school.age2students
+        for studentid in students
+            push!(studentids, studentid)
+        end
+    end
+    nstudents = length(studentids)
+
+    # For each teacher, cycle through the students until the teacher has enough contacts
+    teachers = school.teachers
+    ncontacts_t2s = min(ncontacts_t2s, nstudents)  # Can't contact more students than are in the school
+    idx = 0
+    for teacherid in teachers
+        teacher_contactlist = agents[teacherid].workplace
+        for i = 1:ncontacts_t2s
+            idx += 1
+            idx  = idx > nstudents ? 1 : idx
+            studentid = studentids[idx]
+            student_contactlist = agents[studentid].workplace
+            append_contact!(teacherid, studentid, teacher_contactlist)
+            append_contact!(studentid, teacherid, student_contactlist)
+        end
+    end
+end
+
+function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t::Int)
+    teachers = school.teachers
+    isempty(teachers) && return
+    nteachers        = length(teachers)
+    vertexid2agentid = Dict(i => teachers[i] for i = 1:nteachers)
+    assign_contacts_regulargraph!(agents, :workplace, min(ncontacts_t2t, nteachers), vertexid2agentid)
 end
 
 ################################################################################

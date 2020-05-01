@@ -33,10 +33,13 @@ struct Config
     n_social_contacts::Int
     n_community_contacts::Int
     n_workplace_contacts::Int
+    ncontacts_s2s::Int  # Number of student-to-student contacts
+    ncontacts_t2t::Int  # Number of teacher-to-teacher contacts
+    ncontacts_t2s::Int  # Number of teacher-to-student contacts
     scenarios::Dict{String, Scenario}  # scenario_name => scenario
 
     function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
-                    n_social_contacts, n_community_contacts, n_workplace_contacts, scenarios)
+                    n_social_contacts, n_community_contacts, n_workplace_contacts, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s, scenarios)
         for (tablename, datafile) in input_data
             !isfile(datafile) && error("Input data file does not exist: $(datafile)")
         end
@@ -47,8 +50,11 @@ struct Config
         n_social_contacts    < 0 && error("n_social_contacts must be at least 0")
         n_community_contacts < 0 && error("n_community_contacts must be at least 0")
         n_workplace_contacts < 0 && error("n_workplace_contacts must be at least 0")
+        ncontacts_s2s        < 1 && error("ncontacts_s2s must be at least 1")
+        ncontacts_t2t        < 1 && error("ncontacts_t2t must be at least 1")
+        ncontacts_t2s        < 1 && error("ncontacts_t2s must be at least 1")
         new(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
-            n_social_contacts, n_community_contacts, n_workplace_contacts, scenarios)
+            n_social_contacts, n_community_contacts, n_workplace_contacts, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s, scenarios)
     end
 end
 
@@ -56,7 +62,7 @@ function Config(configfile::String)
     d = YAML.load_file(configfile)
     scenarios = Dict(nm => Scenario(x) for (nm, x) in d["scenarios"])
     Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"], d["nruns_per_scenario"],
-           d["n_social_contacts"], d["n_community_contacts"], d["n_workplace_contacts"], scenarios)
+           d["n_social_contacts"], d["n_community_contacts"], d["n_workplace_contacts"], d["ncontacts_s2s"], d["ncontacts_t2t"], d["ncontacts_t2s"], scenarios)
 end
 
 end

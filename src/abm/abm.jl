@@ -111,7 +111,7 @@ mutable struct Person <: AbstractAgent
 
     # Contacts
     household::Vector{Int}  # People in the same household
-    work::Vector{Int}       # Child care, school, university, workplace
+    workplace::Vector{Int}  # Child care, school, university, workplace
     community::Vector{Int}  # Shops, transport, pool, library, etc
     social::Vector{Int}     # Family and/or friends outside the household
 
@@ -223,7 +223,7 @@ end
 
 function infect_workplace_contacts!(p_workplace, pr_infect, agent, agents, model, t)
     p_workplace == 0.0 && return
-    for id in agent.work
+    for id in agent.workplace
         rand() > p_workplace && continue
         infect_contact!(pr_infect, agents[id], model, t)
     end
