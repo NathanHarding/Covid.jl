@@ -17,7 +17,6 @@ mutable struct Scenario
         (workplace < 0.0 || workplace > 1.0) && error("Pr(Contact within work place) must be between 0 and 1")
         (community < 0.0 || community > 1.0) && error("Pr(Contact within community) must be between 0 and 1")
         (social    < 0.0 || social    > 1.0) && error("Pr(Contact within social network) must be between 0 and 1")
-        school     > 0.0 && workplace > 0.0  && error("Cannot make contacts both in school and the work place.")
         new(household, school, workplace, community, social)
     end
 end

@@ -38,8 +38,8 @@ According to the above, when `t=7`:
 
 ## Next
 
+- Implement time-dependent scenarios.
 - Update parameters with ABS data.
-- Define social distancing regimes.
-- Implement time-dependent regimes.
+- Define social distancing scenarios.
 - Solve for parameters.
 - Add other risk factors such as diabetic status, hypertension, BMI, etc.
