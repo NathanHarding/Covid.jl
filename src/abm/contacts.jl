@@ -2,23 +2,24 @@ module contacts
 
 export populate_contacts!
 
+using DataFrames
 using Distributions
 using LightGraphs
 
 function populate_contacts!(agents, cfg, indata)
-    # Data
-    age2first   = sort_agents!(agents)  # agents[age2first[i]] is the first agent with age i
+    # household data
     d_nparents  = Categorical([0.26, 0.74])
     d_nchildren = Categorical([0.33, 0.4, 0.25, 0.01, 0.005, 0.005])
     d_nadults_without_children = Categorical([0.42, 0.47, 0.04, 0.04, 0.02, 0.01])
-    workplace_sizes  = Dict(1 => 2, 2 => 10, 3 => 50, 4 => 200, 5 => 500, 6 => 100, 7 => 2000)
-    d_workplace_size = Categorical([0.25, 0.25, 0.25, 0.15, 0.05, 0.03, 0.02])  # Categories are: 2, 10, 50, 200, 500, 1000, 2000
+
+    # school data
     d_max_nstudents_per_level = Categorical([0.1, 0.4, 0.4, 0.1])  # Categories are: 15, 20, 25, 30
     student_level_sizes       = Dict(1 => 15, 2 => 20, 3 => 25, 4 => 30)
 
+    age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
     populate_school_contacts!(agents, age2first, d_max_nstudents_per_level, student_level_sizes, cfg.ncontacts_s2s, cfg.ncontacts_t2t, cfg.ncontacts_t2s)
-    populate_workplace_contacts!(agents, cfg.n_workplace_contacts, d_workplace_size, workplace_sizes)
+    populate_workplace_contacts!(agents, cfg.n_workplace_contacts, indata["workplace_distribution"])
     populate_community_contacts!(agents, cfg.n_community_contacts)
     populate_social_contacts!(agents, cfg.n_social_contacts)
 end
@@ -102,7 +103,7 @@ end
 - Rewrite their ids in order
 - Return age2first, where agents[age2first[i]] is the first agent with age i
 """
-function sort_agents!(agents)
+function construct_age2firstindex!(agents)
     sort!(agents, by=(x) -> x.age)  # Sort from youngest to oldest
     age2first = Dict{Int, Int}()    # age => first index containing age
     current_age = -1
@@ -454,24 +455,33 @@ end
 ################################################################################
 # Workplace, community and social contacts
 
-function populate_workplace_contacts!(agents, ncontacts::Int, d_workplace_size, workplace_sizes::Dict{Int, Int})
+function populate_workplace_contacts!(agents, ncontacts::Int, workplaces::DataFrame)
     nagents = size(agents, 1)
     adultid = 0
-    workplace_size  = workplace_sizes[rand(d_workplace_size)]
-    adultid2agentid = Dict{Int, Int}()
+    d_workplace_size = Categorical(workplaces.pct)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
+    workplace_size   = draw_nworkers(workplaces, d_workplace_size)
+    adultid2agentid  = Dict{Int, Int}()
     for agent in agents
-        agent.age <= 23             && continue  # People under 23 are assumed to be in education not the workplace
-        length(agent.workplace) > 0 && continue  # Adult is employed at a school
+        agent.age <= 23               && continue  # People under 23 are assumed to be in education not the workplace
+        !isempty(agent.workplace) > 0 && continue  # Adult is employed at a school
         adultid += 1
         adultid2agentid[adultid] = agent.id
-        if adultid == workplace_size
+        if adultid == workplace_size  # Work place is full...record the workplace contacts and set a new empty workplace.
             assign_contacts_regulargraph!(agents, :workplace, min(ncontacts, workplace_size), adultid2agentid)
             adultid = 0
             adultid2agentid = Dict{Int, Int}()
-            workplace_size  = workplace_sizes[rand(d_workplace_size)]
+            workplace_size  = draw_nworkers(workplaces, d_workplace_size)
         end
     end
 end
+
+function draw_nworkers(workplaces::DataFrame, d_workplace_size)
+    i  = rand(d_workplace_size)
+    lb = workplaces[i, :nemployees_lb]
+    ub = workplaces[i, :nemployees_ub]
+    rand(lb:ub) + 1
+end
+
 
 populate_community_contacts!(agents, ncontacts) = assign_contacts_regulargraph!(agents, :community, ncontacts)
 populate_social_contacts!(agents, ncontacts)    = assign_contacts_regulargraph!(agents, :social,    ncontacts)

@@ -38,7 +38,6 @@ According to the above, when `t=7`:
 
 ## Next
 
-- Implement time-dependent scenarios.
 - Update parameters with ABS data.
 - Define social distancing scenarios.
 - Solve for parameters.
