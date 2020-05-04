@@ -1,7 +1,7 @@
 output_directory: "C:\\projects\\data\\dhhs\\covid-abm\\output"
 input_data:
     params:                 "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\params.csv"
-    age_distribution:       "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\age_distribution.csv"
+    age_distribution:       "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\population_by_age_VIC.tsv"
     household_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\household_distribution.csv"
     workplace_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\workplace_by_size_VIC.tsv"
 maxtime: 180

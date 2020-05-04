@@ -41,30 +41,19 @@ end
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
     agedist  = indata["age_distribution"]
-    npeople  = sum(agedist[!, :Count])
+    npeople  = round(Int, 0.1 * sum(agedist[!, :count]))  # TODO: Use entire population
     agents   = Vector{Person}(undef, npeople)
     schedule = init_schedule(cfg.maxtime)
     model    = Model(agents, params, 0, cfg.maxtime, schedule)
 
     # Construct people
-    id = 0
-    d_status0   = Categorical(cfg.initial_state_distribution)
-    n_agegroups = size(agedist, 1)
-    for i = 1:n_agegroups
-        agegroup = String(agedist[i, :AgeGroup])  # Example: "Age 0-4", "Age 85+"
-        agegroup = agegroup[5:end]                # Example: "0-4", "85+"
-        idx = findfirst(==('-'), agegroup)
-        idx = isnothing(idx) ? findfirst(==('+'), agegroup) : idx
-        lb  = parse(Int, agegroup[1:(idx-1)])
-        ub  = lb + 4  # Oldest age is therefore 89
-        n_agegroup = agedist[i, :Count]
-        for j in 1:n_agegroup
-            id += 1
-            status     = statuses[rand(d_status0)]
-            age        = rand(lb:ub)
-            agents[id] = Person(id, status, age)
-            push!(status0, status)
-        end
+    d_status0 = Categorical(cfg.initial_state_distribution)
+    d_age     = Categorical(agedist.proportion)
+    for id = 1:npeople
+        age        = agedist[rand(d_age), :age]
+        status     = statuses[rand(d_status0)]
+        agents[id] = Person(id, status, age)
+        push!(status0, status)
     end
 
     # Sort agents and populate contacts
