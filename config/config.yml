@@ -1,8 +1,9 @@
 output_directory: "C:\\projects\\data\\dhhs\\covid-abm\\output"
 input_data:
-    params: "C:\\projects\\data\\dhhs\\covid-abm\\input\\params.csv"
-    age_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\age_distribution.csv"
-    household_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\household_distribution.csv"
+    params:                 "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\params.csv"
+    age_distribution:       "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\age_distribution.csv"
+    household_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\household_distribution.csv"
+    workplace_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\workplace_by_size_VIC.tsv"
 maxtime: 180
 nruns_per_scenario: 4
 initial_state_distribution: [0.98, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SEIHCVRD
