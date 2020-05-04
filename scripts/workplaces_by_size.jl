@@ -43,7 +43,7 @@ function counts_to_table(grp2count::Dict)
         push!(result, d)
         ntotal += n_businesses
     end
-    result[!, :pct] = result.count ./ ntotal
+    result[!, :proportion] = result.count ./ ntotal
     sort!(result, :nemployees_lb)
     result
 end

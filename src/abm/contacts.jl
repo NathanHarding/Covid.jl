@@ -13,7 +13,7 @@ function populate_contacts!(agents, cfg, indata)
     d_nadults_without_children = Categorical([0.42, 0.47, 0.04, 0.04, 0.02, 0.01])
 
     # school data
-    d_max_nstudents_per_level = Categorical([0.1, 0.4, 0.4, 0.1])  # Categories are: 15, 20, 25, 30
+    d_max_nstudents_per_level = Categorical([0.1, 0.4, 0.4, 0.1])  # Categories are: 15 students per year level, 20, 25, 30
     student_level_sizes       = Dict(1 => 15, 2 => 20, 3 => 25, 4 => 30)
 
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
@@ -458,7 +458,7 @@ end
 function populate_workplace_contacts!(agents, ncontacts::Int, workplaces::DataFrame)
     nagents = size(agents, 1)
     adultid = 0
-    d_workplace_size = Categorical(workplaces.pct)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
+    d_workplace_size = Categorical(workplaces.proportion)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
     workplace_size   = draw_nworkers(workplaces, d_workplace_size)
     adultid2agentid  = Dict{Int, Int}()
     for agent in agents

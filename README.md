@@ -39,6 +39,11 @@ According to the above, when `t=7`:
 ## Next
 
 - Update parameters with ABS data.
+  - Update populationo data
+  - Update schools data
+  - Read Simon's work, compare to the household code
 - Define social distancing scenarios.
 - Solve for parameters.
+- Parition population for specific hospitals
+    - Use SA4 for workplace distribution, assuming people can travel across their SA4 of residence to work
 - Add other risk factors such as diabetic status, hypertension, BMI, etc.
