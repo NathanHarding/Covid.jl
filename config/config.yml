@@ -1,6 +1,6 @@
 output_directory: "C:\\projects\\data\\dhhs\\covid-abm\\output"
 input_data:
-    params:                 "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\params.csv"
+    params:                 "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\params.tsv"
     age_distribution:       "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\population_by_age_VIC.tsv"
     household_distribution: "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\household_distribution.csv"
     school_distribution:    "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\avg_year_level_size_distribution.tsv"
@@ -8,12 +8,6 @@ input_data:
 maxtime: 180
 nruns_per_scenario: 4
 initial_state_distribution: [0.98, 0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # SEIHCVRD
-n_social_contacts: 35
-n_community_contacts: 20
-n_workplace_contacts: 20
-ncontacts_s2s: 15  # student-to-student contacts per student
-ncontacts_t2t: 10  # teacher-to-teacher contacts per teacher
-ncontacts_t2s: 20  # teacher-to-student contacts per teacher
 scenarios:
     #open: {household: 1.0, school: 1.0, workplace: 1.0, community: 1.0, social: 1.0}
     #home: {household: 1.0, school: 0.0, work: 0.0, community: 0.1, social: 0.0}

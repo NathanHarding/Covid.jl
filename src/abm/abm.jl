@@ -57,7 +57,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     end
 
     # Sort agents and populate contacts
-    populate_contacts!(agents, cfg, indata)
+    populate_contacts!(agents, params, indata)
     model
 end
 

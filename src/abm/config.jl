@@ -29,16 +29,9 @@ struct Config
     initial_state_distribution::Vector{Float64}
     maxtime::Int
     nruns_per_scenario::Int
-    n_social_contacts::Int
-    n_community_contacts::Int
-    n_workplace_contacts::Int
-    ncontacts_s2s::Int  # Number of student-to-student contacts
-    ncontacts_t2t::Int  # Number of teacher-to-teacher contacts
-    ncontacts_t2s::Int  # Number of teacher-to-student contacts
     scenarios::Dict{String, Dict{Int, Scenario}}  # scenario_name => t => scenario
 
-    function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
-                    n_social_contacts, n_community_contacts, n_workplace_contacts, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s, scenarios)
+    function Config(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario, scenarios)
         for (tablename, datafile) in input_data
             !isfile(datafile) && error("Input data file does not exist: $(datafile)")
         end
@@ -46,14 +39,7 @@ struct Config
         length(initial_state_distribution) != 8 && error("Initial state distribution does not have length 8")
         maxtime < 0 && error("maxtime is less than 0")
         nruns_per_scenario   < 1 && error("nruns_per_scenario is less than 1")
-        n_social_contacts    < 0 && error("n_social_contacts must be at least 0")
-        n_community_contacts < 0 && error("n_community_contacts must be at least 0")
-        n_workplace_contacts < 0 && error("n_workplace_contacts must be at least 0")
-        ncontacts_s2s        < 1 && error("ncontacts_s2s must be at least 1")
-        ncontacts_t2t        < 1 && error("ncontacts_t2t must be at least 1")
-        ncontacts_t2s        < 1 && error("ncontacts_t2s must be at least 1")
-        new(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario,
-            n_social_contacts, n_community_contacts, n_workplace_contacts, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s, scenarios)
+        new(input_data, output_directory, initial_state_distribution, maxtime, nruns_per_scenario, scenarios)
     end
 end
 
@@ -66,8 +52,7 @@ function Config(configfile::String)
             scenarios[nm][t] = Scenario(scenario)
         end
     end
-    Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"], d["nruns_per_scenario"],
-           d["n_social_contacts"], d["n_community_contacts"], d["n_workplace_contacts"], d["ncontacts_s2s"], d["ncontacts_t2t"], d["ncontacts_t2s"], scenarios)
+    Config(d["input_data"], d["output_directory"], d["initial_state_distribution"], d["maxtime"], d["nruns_per_scenario"], scenarios)
 end
 
 end

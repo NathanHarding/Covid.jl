@@ -6,7 +6,7 @@ using DataFrames
 using Distributions
 using LightGraphs
 
-function populate_contacts!(agents, cfg, indata)
+function populate_contacts!(agents, params, indata)
     # household data
     d_nparents  = Categorical([0.26, 0.74])
     d_nchildren = Categorical([0.33, 0.4, 0.25, 0.01, 0.005, 0.005])
@@ -14,10 +14,10 @@ function populate_contacts!(agents, cfg, indata)
 
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
-    populate_school_contacts!(agents, age2first, indata["school_distribution"], cfg.ncontacts_s2s, cfg.ncontacts_t2t, cfg.ncontacts_t2s)
-    populate_workplace_contacts!(agents, cfg.n_workplace_contacts, indata["workplace_distribution"])
-    populate_community_contacts!(agents, cfg.n_community_contacts)
-    populate_social_contacts!(agents, cfg.n_social_contacts)
+    populate_school_contacts!(agents, age2first, indata["school_distribution"], params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
+    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"])
+    populate_community_contacts!(agents, params.n_community_contacts)
+    populate_social_contacts!(agents, params.n_social_contacts)
 end
 
 ################################################################################
@@ -411,17 +411,17 @@ function determine_schooltype(age::Int)
     error("Person with age $(age) cannot be assigned as a student to a school")
 end
 
-function set_student_to_student_contacts!(agents, school::School, ncontacts_s2s::Int)
+function set_student_to_student_contacts!(agents, school::School, ncontacts_s2s)
     age2students = school.age2students
     for (age, students) in age2students
         isempty(students) && continue
         nstudents        = length(students)
         vertexid2agentid = Dict(i => students[i] for i = 1:nstudents)
-        assign_contacts_regulargraph!(agents, :workplace, min(ncontacts_s2s, nstudents), vertexid2agentid)
+        assign_contacts_regulargraph!(agents, :workplace, min(Int(ncontacts_s2s), nstudents), vertexid2agentid)
     end
 end
 
-function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s::Int)
+function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s)
     # Construct a vector of studentids
     studentids = Int[]
     for (age, students) in school.age2students
@@ -433,7 +433,7 @@ function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s:
 
     # For each teacher, cycle through the students until the teacher has enough contacts
     teachers = school.teachers
-    ncontacts_t2s = min(ncontacts_t2s, nstudents)  # Can't contact more students than are in the school
+    ncontacts_t2s = Int(min(ncontacts_t2s, nstudents))  # Can't contact more students than are in the school
     idx = 0
     for teacherid in teachers
         teacher_contactlist = agents[teacherid].workplace
@@ -448,18 +448,18 @@ function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s:
     end
 end
 
-function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t::Int)
+function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t)
     teachers = school.teachers
     isempty(teachers) && return
     nteachers        = length(teachers)
     vertexid2agentid = Dict(i => teachers[i] for i = 1:nteachers)
-    assign_contacts_regulargraph!(agents, :workplace, min(ncontacts_t2t, nteachers), vertexid2agentid)
+    assign_contacts_regulargraph!(agents, :workplace, min(Int(ncontacts_t2t), nteachers), vertexid2agentid)
 end
 
 ################################################################################
 # Workplace, community and social contacts
 
-function populate_workplace_contacts!(agents, ncontacts::Int, workplaces::DataFrame)
+function populate_workplace_contacts!(agents, ncontacts, workplaces::DataFrame)
     nagents = size(agents, 1)
     adultid = 0
     d_workplace_size = Categorical(workplaces.proportion)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
@@ -471,7 +471,7 @@ function populate_workplace_contacts!(agents, ncontacts::Int, workplaces::DataFr
         adultid += 1
         adultid2agentid[adultid] = agent.id
         if adultid == workplace_size  # Work place is full...record the workplace contacts and set a new empty workplace.
-            assign_contacts_regulargraph!(agents, :workplace, min(ncontacts, workplace_size), adultid2agentid)
+            assign_contacts_regulargraph!(agents, :workplace, min(Int(ncontacts), workplace_size), adultid2agentid)
             adultid = 0
             adultid2agentid = Dict{Int, Int}()
             workplace_size  = draw_nworkers(workplaces, d_workplace_size)
@@ -487,7 +487,7 @@ function draw_nworkers(workplaces::DataFrame, d_workplace_size)
 end
 
 
-populate_community_contacts!(agents, ncontacts) = assign_contacts_regulargraph!(agents, :community, ncontacts)
-populate_social_contacts!(agents, ncontacts)    = assign_contacts_regulargraph!(agents, :social,    ncontacts)
+populate_community_contacts!(agents, ncontacts) = assign_contacts_regulargraph!(agents, :community, Int(ncontacts))
+populate_social_contacts!(agents, ncontacts)    = assign_contacts_regulargraph!(agents, :social,    Int(ncontacts))
 
 end
