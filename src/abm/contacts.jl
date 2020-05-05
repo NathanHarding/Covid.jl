@@ -12,13 +12,9 @@ function populate_contacts!(agents, cfg, indata)
     d_nchildren = Categorical([0.33, 0.4, 0.25, 0.01, 0.005, 0.005])
     d_nadults_without_children = Categorical([0.42, 0.47, 0.04, 0.04, 0.02, 0.01])
 
-    # school data
-    d_max_nstudents_per_level = Categorical([0.1, 0.4, 0.4, 0.1])  # Categories are: 15 students per year level, 20, 25, 30
-    student_level_sizes       = Dict(1 => 15, 2 => 20, 3 => 25, 4 => 30)
-
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
-    populate_school_contacts!(agents, age2first, d_max_nstudents_per_level, student_level_sizes, cfg.ncontacts_s2s, cfg.ncontacts_t2t, cfg.ncontacts_t2s)
+    populate_school_contacts!(agents, age2first, indata["school_distribution"], cfg.ncontacts_s2s, cfg.ncontacts_t2t, cfg.ncontacts_t2s)
     populate_workplace_contacts!(agents, cfg.n_workplace_contacts, indata["workplace_distribution"])
     populate_community_contacts!(agents, cfg.n_community_contacts)
     populate_social_contacts!(agents, cfg.n_social_contacts)
@@ -351,7 +347,8 @@ function push_student!(school::School, id::Int, age::Int)
     true  # Success
 end
 
-function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level, student_level_sizes, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s)
+function populate_school_contacts!(agents, age2first, school_distribution::DataFrame, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s)
+    d_nstudents_per_level = Categorical(school_distribution.proportion)
     min_teacher_age   = 24
     max_teacher_age   = 65
     unplaced_students = Dict(age => Set(age2first[age]:(age2first[age+1] - 1)) for age = 0:23)
@@ -368,7 +365,7 @@ function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level,
         isnothing(agentid) && break  # STOPPING CRITERION: There are no unplaced students remaining
         student    = agents[agentid]
         schooltype = determine_schooltype(student.age)
-        max_nstudents_per_level = student_level_sizes[rand(d_max_nstudents_per_level)]
+        max_nstudents_per_level = draw_nstudents_per_level(school_distribution, d_nstudents_per_level)
         school     = School(schooltype, max_nstudents_per_level)
 
         # Fill student positions
@@ -397,6 +394,13 @@ function populate_school_contacts!(agents, age2first, d_max_nstudents_per_level,
         set_teacher_to_student_contacts!(agents, school, ncontacts_t2s)
         set_teacher_to_teacher_contacts!(agents, school, ncontacts_t2t)
     end
+end
+
+function draw_nstudents_per_level(school_distribution::DataFrame, d_nstudents_per_level)
+    i  = rand(d_nstudents_per_level)
+    lb = school_distribution[i, :avg_year_level_size_lb]
+    ub = school_distribution[i, :avg_year_level_size_ub]
+    round(Int, 0.5 * (lb + ub))
 end
 
 function determine_schooltype(age::Int)

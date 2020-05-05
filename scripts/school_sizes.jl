@@ -64,7 +64,7 @@ data    = longify(data)
 outfile = "C:\\projects\\data\\dhhs\\covid-abm\\input\\intermediate\\year_level_sizes_by_school_longform.tsv"
 CSV.write(outfile, data; delim='\t')
 
-# Construct result. Columns: avg_year_level_size, count, proportion
+# Construct result. Columns: avg_year_level_size_lb, avg_year_level_size_ub, count, proportion
 data = avg_year_level_size(data)
 outfile = "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\avg_year_level_size_distribution.tsv"
 CSV.write(outfile, data; delim='\t')

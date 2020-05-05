@@ -39,7 +39,7 @@ According to the above, when `t=7`:
 ## Next
 
 - Update parameters with ABS data.
-  - Update schools data
+  - Update universtiy data
   - Read Simon's work, compare to the household code
 - Fix scheduling for infecting contacts
 - Define social distancing scenarios.
