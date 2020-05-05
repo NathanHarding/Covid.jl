@@ -192,46 +192,61 @@ p_D(params, age) = 1.0 / (1.0 + exp(-(params.a0_D + params.a1_D * age)))  # Pr(N
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
 function infect_contacts!(agent::Person, model, t::Int)
+    agent.status != :I && return
     agents      = model.agents
     age         = agent.age
     pr_infect   = p_infect(model.params, age)
     p_workplace = age <= 23 ? active_scenario.school : active_scenario.workplace
-    infect_household_contacts!(active_scenario.household, pr_infect, agent, agents, model, t)
-    infect_workplace_contacts!(p_workplace,               pr_infect, agent, agents, model, t)
-    infect_community_contacts!(active_scenario.community, pr_infect, agent, agents, model, t)
-    infect_social_contacts!(active_scenario.social,       pr_infect, agent, agents, model, t)
+    n_susceptible_contacts = 0
+    n_susceptible_contacts = infect_household_contacts!(active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_workplace_contacts!(p_workplace,               pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_community_contacts!(active_scenario.community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_social_contacts!(active_scenario.social,       pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end
 
-function infect_household_contacts!(p_household, pr_infect, agent, agents, model, t)
-    p_household == 0.0 && return
+function infect_household_contacts!(p_household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     for id in agent.household
-        rand() > p_household && continue
-        infect_contact!(pr_infect, agents[id], model, t)
+        contact = agents[id]
+        p_household > 0.0 && rand() <= p_household && infect_contact!(pr_infect, contact, model, t)
+        if contact.status == :S
+            n_susceptible_contacts += 1
+        end
     end
+    n_susceptible_contacts
 end
 
-function infect_workplace_contacts!(p_workplace, pr_infect, agent, agents, model, t)
-    p_workplace == 0.0 && return
+function infect_workplace_contacts!(p_workplace, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     for id in agent.workplace
-        rand() > p_workplace && continue
-        infect_contact!(pr_infect, agents[id], model, t)
+        contact = agents[id]
+        p_workplace > 0.0 && rand() <= p_workplace && infect_contact!(pr_infect, contact, model, t)
+        if contact.status == :S
+            n_susceptible_contacts += 1
+        end
     end
+    n_susceptible_contacts
 end
 
-function infect_community_contacts!(p_community, pr_infect, agent, agents, model, t)
-    p_community == 0.0 && return
+function infect_community_contacts!(p_community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     for id in agent.community
-        rand() > p_community && continue
-        infect_contact!(pr_infect, agents[id], model, t)
+        contact = agents[id]
+        p_community > 0.0 && rand() <= p_community && infect_contact!(pr_infect, contact, model, t)
+        if contact.status == :S
+            n_susceptible_contacts += 1
+        end
     end
+    n_susceptible_contacts
 end
 
-function infect_social_contacts!(p_social, pr_infect, agent, agents, model, t)
-    p_social == 0.0 && return
+function infect_social_contacts!(p_social, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     for id in agent.social
-        rand() > p_social && continue
-        infect_contact!(pr_infect, agents[id], model, t)
+        contact = agents[id]
+        p_social > 0.0 && rand() <= p_social && infect_contact!(pr_infect, contact, model, t)
+        if contact.status == :S
+            n_susceptible_contacts += 1
+        end
     end
+    n_susceptible_contacts
 end
 
 "Infect contact with probability p_infect."

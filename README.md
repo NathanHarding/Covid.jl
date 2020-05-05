@@ -38,10 +38,8 @@ According to the above, when `t=7`:
 
 ## Next
 
-- Update parameters with ABS data.
-  - Update universtiy data
-  - Read Simon's work, compare to the household code
-- Fix scheduling for infecting contacts
+- Read Simon's work, compare to the household code
+- Update universtiy data
 - Define social distancing scenarios.
 - Solve for parameters.
 - Parition population for specific hospitals
