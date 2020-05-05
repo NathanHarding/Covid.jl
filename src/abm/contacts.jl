@@ -306,20 +306,23 @@ end
 
 function School(schooltype::Symbol, max_nstudents_per_level)
     # Construct age2students
+    teacher2student_ratio = 1 / 15  # Need at least 1 teacher to 15 students
     if schooltype == :childcare
+        max_nstudents_per_level = 20
         age2students = Dict(age => Int[] for age = 0:4)
     elseif schooltype == :primary
         age2students = Dict(age => Int[] for age = 5:11)
     elseif schooltype == :secondary
         age2students = Dict(age => Int[] for age = 12:17)
     elseif schooltype == :tertiary
+        max_nstudents_per_level = 1000
+        teacher2student_ratio   = 1 / 40
         age2students = Dict(age => Int[] for age = 18:23)
     else
         error("Unknown school type")
     end
 
     # Calculate the number of required teachers
-    teacher2student_ratio = 1 / 15  # Need at least 1 teacher to 15 students
     nlevels       = length(age2students)
     max_nstudents = nlevels * max_nstudents_per_level
     max_nteachers = round(Int, teacher2student_ratio * max_nstudents)

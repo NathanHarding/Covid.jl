@@ -39,7 +39,6 @@ According to the above, when `t=7`:
 ## Next
 
 - Read Simon's work, compare to the household code
-- Update universtiy data
 - Define social distancing scenarios.
 - Solve for parameters.
 - Parition population for specific hospitals
