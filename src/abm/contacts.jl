@@ -14,7 +14,8 @@ function populate_contacts!(agents, params, indata)
 
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
     populate_households!(agents, age2first, d_nparents, d_nchildren, d_nadults_without_children)
-    populate_school_contacts!(agents, age2first, indata["school_distribution"], params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
+    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
+                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
     populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"])
     populate_community_contacts!(agents, params.n_community_contacts)
     populate_social_contacts!(agents, params.n_social_contacts)
@@ -304,19 +305,25 @@ mutable struct School
     end
 end
 
-function School(schooltype::Symbol, max_nstudents_per_level)
-    # Construct age2students
-    teacher2student_ratio = 1 / 15  # Need at least 1 teacher to 15 students
+function School(schooltype::Symbol,
+                primaryschool_distribution::DataFrame, secondaryschool_distribution::DataFrame,
+                d_nstudents_per_level_primary, d_nstudents_per_level_secondary)
+    # Construct max_nstudents_per_level, age2students and the teacher-student ratio
     if schooltype == :childcare
         max_nstudents_per_level = 20
+        teacher2student_ratio   = 1 / 15  # Need at least 1 teacher to 15 students
         age2students = Dict(age => Int[] for age = 0:4)
     elseif schooltype == :primary
+        max_nstudents_per_level = draw_nstudents_per_level(primaryschool_distribution, d_nstudents_per_level_primary)
+        teacher2student_ratio   = 1 / 15
         age2students = Dict(age => Int[] for age = 5:11)
     elseif schooltype == :secondary
+        max_nstudents_per_level = draw_nstudents_per_level(secondaryschool_distribution, d_nstudents_per_level_secondary)
+        teacher2student_ratio   = 1 / 15
         age2students = Dict(age => Int[] for age = 12:17)
     elseif schooltype == :tertiary
-        max_nstudents_per_level = 1000
         teacher2student_ratio   = 1 / 40
+        max_nstudents_per_level = 1000
         age2students = Dict(age => Int[] for age = 18:23)
     else
         error("Unknown school type")
@@ -327,6 +334,21 @@ function School(schooltype::Symbol, max_nstudents_per_level)
     max_nstudents = nlevels * max_nstudents_per_level
     max_nteachers = round(Int, teacher2student_ratio * max_nstudents)
     School(max_nteachers, max_nstudents_per_level, Int[], age2students)
+end
+
+function draw_nstudents_per_level(school_distribution::DataFrame, d_nstudents_per_level)
+    i  = rand(d_nstudents_per_level)
+    lb = school_distribution[i, :avg_year_level_size_lb]
+    ub = school_distribution[i, :avg_year_level_size_ub]
+    round(Int, 0.5 * (lb + ub))
+end
+
+function determine_schooltype(age::Int)
+    age <= 4  && return :childcare
+    age <= 11 && return :primary
+    age <= 17 && return :secondary
+    age <= 23 && return :tertiary
+    error("Person with age $(age) cannot be assigned as a student to a school")
 end
 
 function isfull(school::School)
@@ -350,8 +372,10 @@ function push_student!(school::School, id::Int, age::Int)
     true  # Success
 end
 
-function populate_school_contacts!(agents, age2first, school_distribution::DataFrame, ncontacts_s2s, ncontacts_t2t, ncontacts_t2s)
-    d_nstudents_per_level = Categorical(school_distribution.proportion)
+function populate_school_contacts!(agents, age2first, primaryschool_distribution::DataFrame, secondaryschool_distribution::DataFrame,
+                                   ncontacts_s2s, ncontacts_t2t, ncontacts_t2s)
+    d_nstudents_per_level_primary   = Categorical(primaryschool_distribution.proportion)
+    d_nstudents_per_level_secondary = Categorical(secondaryschool_distribution.proportion)
     min_teacher_age   = 24
     max_teacher_age   = 65
     unplaced_students = Dict(age => Set(age2first[age]:(age2first[age+1] - 1)) for age = 0:23)
@@ -368,13 +392,14 @@ function populate_school_contacts!(agents, age2first, school_distribution::DataF
         isnothing(agentid) && break  # STOPPING CRITERION: There are no unplaced students remaining
         student    = agents[agentid]
         schooltype = determine_schooltype(student.age)
-        max_nstudents_per_level = draw_nstudents_per_level(school_distribution, d_nstudents_per_level)
-        school     = School(schooltype, max_nstudents_per_level)
+        school     = School(schooltype,
+                            primaryschool_distribution, secondaryschool_distribution,
+                            d_nstudents_per_level_primary, d_nstudents_per_level_secondary)
 
         # Fill student positions
         age2students = school.age2students
         for (age, students) in age2students
-            n_available = max_nstudents_per_level - length(students)  # Number of available positions
+            n_available = school.max_nstudents_per_level - length(students)  # Number of available positions
             for j = 1:n_available
                 isempty(unplaced_students[age]) && break
                 studentid = sample_person(unplaced_students[age], age, age, agents, age2first)
@@ -397,21 +422,6 @@ function populate_school_contacts!(agents, age2first, school_distribution::DataF
         set_teacher_to_student_contacts!(agents, school, ncontacts_t2s)
         set_teacher_to_teacher_contacts!(agents, school, ncontacts_t2t)
     end
-end
-
-function draw_nstudents_per_level(school_distribution::DataFrame, d_nstudents_per_level)
-    i  = rand(d_nstudents_per_level)
-    lb = school_distribution[i, :avg_year_level_size_lb]
-    ub = school_distribution[i, :avg_year_level_size_ub]
-    round(Int, 0.5 * (lb + ub))
-end
-
-function determine_schooltype(age::Int)
-    age <= 4  && return :childcare
-    age <= 11 && return :primary
-    age <= 17 && return :secondary
-    age <= 23 && return :tertiary
-    error("Person with age $(age) cannot be assigned as a student to a school")
 end
 
 function set_student_to_student_contacts!(agents, school::School, ncontacts_s2s)

@@ -65,6 +65,12 @@ outfile = "C:\\projects\\data\\dhhs\\covid-abm\\input\\intermediate\\year_level_
 CSV.write(outfile, data; delim='\t')
 
 # Construct result. Columns: avg_year_level_size_lb, avg_year_level_size_ub, count, proportion
-data = avg_year_level_size(data)
-outfile = "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\avg_year_level_size_distribution.tsv"
-CSV.write(outfile, data; delim='\t')
+primary = data[data[!, :year_level] .<= 6, :]
+primary = avg_year_level_size(primary)
+outfile = "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\avg_yearlevel_size_distribution_primary.tsv"
+CSV.write(outfile, primary; delim='\t')
+
+secondary = data[data[!, :year_level] .>= 7, :]
+secondary = avg_year_level_size(secondary)
+outfile   = "C:\\projects\\data\\dhhs\\covid-abm\\input\\consumable\\avg_yearlevel_size_distribution_secondary.tsv"
+CSV.write(outfile, secondary; delim='\t')
