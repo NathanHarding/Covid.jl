@@ -5,15 +5,24 @@ export populate_contacts!
 using DataFrames
 using Distributions
 using LightGraphs
+using Random
 
-function populate_contacts!(agents, params, indata)
+using Dates
+
+function populate_contacts!(agents, params, indata, socialcontacts)
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
-    populate_households!(agents, age2first, params.pr_1_parent, indata["family_household_distribution"], indata["nonfamily_household_distribution"])
-    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
-                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
-    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"])
-    populate_community_contacts!(agents, params.n_community_contacts)
-    populate_social_contacts!(agents, params.n_social_contacts)
+println("$(now()) Populating households")
+#    populate_households!(agents, age2first, params.pr_1_parent, indata["family_household_distribution"], indata["nonfamily_household_distribution"])
+println("$(now()) Populating schools")
+#    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
+#                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
+println("$(now()) Populating work places")
+#    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"])
+println("$(now()) Populating communities")
+#    populate_community_contacts!(agents, params.n_community_contacts)
+println("$(now()) Populating social networks")
+    populate_social_contacts!(agents, params.n_social_contacts, socialcontacts)
+println("$(now()) Done")
 end
 
 ################################################################################
@@ -482,7 +491,7 @@ function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t)
 end
 
 ################################################################################
-# Workplace, community and social contacts
+# Workplace contacts
 
 function populate_workplace_contacts!(agents, ncontacts, workplaces::DataFrame)
     nagents = size(agents, 1)
@@ -511,7 +520,24 @@ function draw_nworkers(workplaces::DataFrame, d_workplace_size)
     rand(lb:ub) + 1
 end
 
+################################################################################
+# Community contacts
+
 populate_community_contacts!(agents, ncontacts) = assign_contacts_regulargraph!(agents, :community, Int(ncontacts))
-populate_social_contacts!(agents, ncontacts)    = assign_contacts_regulargraph!(agents, :social,    Int(ncontacts))
+
+################################################################################
+# Social contacts
+
+function populate_social_contacts!(agents, ncontacts, socialcontacts)
+    npeople = length(agents)
+    for i = 1:npeople
+        push!(socialcontacts, agents[i].id)
+    end
+    shuffle!(socialcontacts)
+    for i = 1:npeople
+        id = socialcontacts[i]
+        agents[id].i_social = i
+    end
+end
 
 end

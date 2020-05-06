@@ -25,9 +25,14 @@ include("contacts.jl")
 using .config
 using .contacts
 
-const status0 = Symbol[]  # Used when resetting the model at the beginning of a run
 const metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
 const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
+
+# Conveniences
+const status0 = Symbol[]      # Used when resetting the model at the beginning of a run
+const socialcontacts = Int[]  # Contains person IDs. Social contacts can be derived for each person.
+
+################################################################################
 
 function update_active_scenario!(scenario::Scenario)
     active_scenario.household = scenario.household
@@ -36,6 +41,23 @@ function update_active_scenario!(scenario::Scenario)
     active_scenario.community = scenario.community
     active_scenario.social    = scenario.social
 end
+
+mutable struct Person <: AbstractAgent
+    id::Int
+    status::Symbol  # S, E, I, H, C, V, R, D
+
+    # Risk factors
+    age::Int
+
+    # Contacts
+    household::Vector{Int}  # People in the same household
+    school::Vector{Int}     # Child care, primary school, secondary school, university. Contains both teachers and students.
+    workplace::Vector{Int}  # Workplace. Empty for teachers, whose workplace is school.
+    community::Vector{Int}  # Shops, transport, pool, library, etc
+    i_social::Int           # Family and/or friends outside the household. socialcontacts[i_social] == person.id
+end
+
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, Int[], Int[], Int[], Int[], 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -70,7 +92,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     end
 
     # Sort agents and populate contacts
-    populate_contacts!(agents, params, indata)
+    populate_contacts!(agents, params, indata, socialcontacts)
     model
 end
 
@@ -106,23 +128,6 @@ function reset_model!(model)
 end
 
 ################################################################################
-
-mutable struct Person <: AbstractAgent
-    id::Int
-    status::Symbol  # S, E, I, H, C, V, R, D
-
-    # Contacts
-    household::Vector{Int}  # People in the same household
-    school::Vector{Int}     # Child care, primary school, secondary school, university. Contains both teachers and students.
-    workplace::Vector{Int}  # Workplace. Empty for teachers, whose workplace is school.
-    community::Vector{Int}  # Shops, transport, pool, library, etc
-    social::Vector{Int}     # Family and/or friends outside the household
-
-    # Risk factors
-    age::Int
-end
-
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, Int[], Int[], Int[], Int[], Int[], age)
 
 function exit_S!(agent::Person, model, t)
     agent.status = :E
@@ -215,7 +220,8 @@ function infect_contacts!(agent::Person, model, t::Int)
     n_susceptible_contacts = infect_contacts!(:school,    active_scenario.school,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts = infect_contacts!(:workplace, active_scenario.workplace, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts = infect_contacts!(:community, active_scenario.community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_contacts!(:social,    active_scenario.social,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    #n_susceptible_contacts = infect_contacts!(:social,    active_scenario.social,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_social_contacts!(active_scenario.social, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end
 
@@ -233,6 +239,55 @@ function infect_contacts!(contact_category::Symbol, pr_contact, pr_infect, agent
         if contact.status == :S
             n_susceptible_contacts += 1
         end
+    end
+    n_susceptible_contacts
+end
+
+function infect_social_contacts!(pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    i_social  = agent.i_social
+    agentid   = agent.id
+    ncontacts = Int(model.params.n_social_contacts)
+    halfn     = div(ncontacts, 2)
+    i1        = i_social - halfn
+    i2        = i_social + halfn
+    if i1 < i2
+        for i = i1:i2
+            id = socialcontacts[i]
+            id == agentid && continue
+            n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+        end
+    elseif i1 > i2
+        n_socialcontacts = length(socialcontacts)
+        for i = i1:n_socialcontacts
+            id = socialcontacts[i]
+            id == agentid && continue
+            n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+        end
+        for i = 1:i2
+            id = socialcontacts[i]
+            id == agentid && continue
+            n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+        end
+    end
+    if isodd(ncontacts)
+        n_socialcontacts = length(socialcontacts)
+        idx = rem(i_social + div(n_socialcontacts, 2), n_socialcontacts)
+        id  = socialcontacts[idx]
+        id != agentid && infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+    end
+    n_susceptible_contacts
+end
+
+function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible_contacts)
+    if pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
+        if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
+            execute_event!(exit_S!, contact, model, t, metrics)
+        #elseif contact.status == :R && rand() <= contact.p_reinfection
+        #    execute_event!(exit_S!, contact, model, t, metrics)
+        end
+    end
+    if contact.status == :S
+        n_susceptible_contacts += 1
     end
     n_susceptible_contacts
 end

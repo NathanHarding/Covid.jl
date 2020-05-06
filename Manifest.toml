@@ -53,9 +53,9 @@ version = "1.0.2"
 
 [[Cairo_jll]]
 deps = ["Bzip2_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "LZO_jll", "Libdl", "Pixman_jll", "Pkg", "X11_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "e7bd31d1588b711113d48c7013a7d8f0b5203940"
+git-tree-sha1 = "d296f5e975306844de3e57118c3cf4a7cf2a8762"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
-version = "1.16.0+3"
+version = "1.16.0+4"
 
 [[CategoricalArrays]]
 deps = ["Compat", "DataAPI", "Future", "JSON", "Missings", "Printf", "Reexport", "Statistics", "Unicode"]
@@ -192,9 +192,9 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[GTK3_jll]]
 deps = ["ATK_jll", "Cairo_jll", "Fontconfig_jll", "FreeType2_jll", "FriBidi_jll", "Glib_jll", "Graphene_jll", "HarfBuzz_jll", "Libdl", "Libepoxy_jll", "Pango_jll", "Pkg", "Wayland_jll", "Xorg_libX11_jll", "Xorg_libXcomposite_jll", "Xorg_libXcursor_jll", "Xorg_libXdamage_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "Xorg_libXi_jll", "Xorg_libXinerama_jll", "Xorg_libXrandr_jll", "Xorg_libXrender_jll", "adwaita_icon_theme_jll", "at_spi2_atk_jll", "gdk_pixbuf_jll", "iso_codes_jll", "xkbcommon_jll"]
-git-tree-sha1 = "19f11cf4e1b25ed45adb1c26c9877ebc212aca99"
+git-tree-sha1 = "2dfd1e3be1bcc8ec24378eb4b1e3e698396c46f6"
 uuid = "77ec8976-b24b-556a-a1bf-49a033a670a6"
-version = "3.24.11+1"
+version = "3.24.11+2"
 
 [[Gettext_jll]]
 deps = ["Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
@@ -399,9 +399,9 @@ version = "0.3.3"
 
 [[OpenBLAS_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
-git-tree-sha1 = "2ee3e636e94b9fd95fa8364d5cba2e20dae16609"
+git-tree-sha1 = "1887096f6897306a4662f7c5af936da7d5d1a062"
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.9+2"
+version = "0.3.9+4"
 
 [[OpenSpecFun_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
@@ -833,9 +833,9 @@ version = "1.2.11+9"
 
 [[Zstd_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "aa97e3e240e86010da61254b0045b7175ead0659"
+git-tree-sha1 = "f23995a6ab76d634865204fe0a4e7254d1a6d1f9"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
-version = "1.4.4+0"
+version = "1.4.4+1"
 
 [[adwaita_icon_theme_jll]]
 deps = ["Libdl", "Pkg", "hicolor_icon_theme_jll"]
