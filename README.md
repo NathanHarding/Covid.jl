@@ -40,6 +40,9 @@ According to the above, when `t=7`:
 
 - Read Simon's work, compare to the household code.
 - Fix Pr(1 parent | children)
+- Allow for interstate and international arrivals.
+- Set initial values.
+- Separate night and day, weekdays and weekends.
 - Define social distancing scenarios.
 - Solve for parameters.
 - Parition population for specific hospitals

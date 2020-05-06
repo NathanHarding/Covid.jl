@@ -25,9 +25,8 @@ include("contacts.jl")
 using .config
 using .contacts
 
-const statuses = [:S, :E, :I, :H, :C, :V, :R, :D]
-const status0  = Symbol[]  # Used when resetting the model at the beginning of a run
-const metrics  = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+const status0 = Symbol[]  # Used when resetting the model at the beginning of a run
+const metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
 const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
 function update_active_scenario!(scenario::Scenario)
@@ -47,13 +46,26 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     model    = Model(agents, params, 0, cfg.maxtime, schedule)
 
     # Construct people
-    d_status0 = Categorical(cfg.initial_state_distribution)
-    d_age     = Categorical(agedist.proportion)
+    d_age = Categorical(agedist.proportion)
     for id = 1:npeople
         age        = agedist[rand(d_age), :age]
-        status     = statuses[rand(d_status0)]
-        agents[id] = Person(id, status, age)
-        push!(status0, status)
+        agents[id] = Person(id, :S, age)
+        push!(status0, :S)
+    end
+
+    # Seed cases
+    rg = 1:npeople
+    for (status, n) in cfg.initial_status_counts
+        nsuccesses = 0
+        jmax = 10 * npeople  # Ceiling on the number of iterations
+        for j = 1:jmax
+            id = rand(rg)
+            agents[id].status != :S && continue  # We've already reset this person's status
+            agents[id].status  = status
+            status0[id] = status
+            nsuccesses += 1
+            nsuccesses == n && break
+        end
     end
 
     # Sort agents and populate contacts

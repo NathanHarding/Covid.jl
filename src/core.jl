@@ -20,6 +20,7 @@ init_schedule(maxtime::Int) = Dict(t => Dict{Int, Tuple{Function, Int}}() for t 
 
 "Schedule an event at time t for agent id"
 function schedule!(agentid::Int, t, event::Function, model)
+    t >= model.maxtime && return
     s = model.schedule[t]
     n = length(s)
     s[n+1] = (event, agentid)
