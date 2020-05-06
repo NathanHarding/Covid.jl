@@ -40,7 +40,8 @@ end
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
     agedist  = indata["age_distribution"]
-    npeople  = round(Int, 0.1 * sum(agedist[!, :count]))  # TODO: Use entire population
+    #npeople  = round(Int, 0.1 * sum(agedist.count))  # TODO: Use entire population
+    npeople  = round(Int, sum(agedist.count))
     agents   = Vector{Person}(undef, npeople)
     schedule = init_schedule(cfg.maxtime)
     model    = Model(agents, params, 0, cfg.maxtime, schedule)

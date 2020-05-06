@@ -3,12 +3,10 @@
 # Run the code
 
 ```julia
-cd("C:\\projects\\repos\\Covid.jl")
 using Pkg
-Pkg.activate(".")
+Pkg.activate("C:\\Users\\jlaw1812\\repos\\Covid.jl")
 using Covid
-configfile = "config\\config.yml"
-Covid.main(configfile)
+Covid.main("C:\\Users\\jlaw1812\\repos\\Covid.jl\\config\\config.yml")
 ```
 
 ## Time
