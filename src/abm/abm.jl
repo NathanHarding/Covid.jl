@@ -29,8 +29,9 @@ const metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R =>
 const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
 # Conveniences
-const status0 = Symbol[]      # Used when resetting the model at the beginning of a run
-const socialcontacts = Int[]  # Contains person IDs. Social contacts can be derived for each person.
+const status0 = Symbol[]         # Used when resetting the model at the beginning of a run
+const socialcontacts    = Int[]  # Contains person IDs. Social contacts can be derived for each person.
+const communitycontacts = Int[]
 
 ################################################################################
 
@@ -53,11 +54,11 @@ mutable struct Person <: AbstractAgent
     household::Vector{Int}  # People in the same household
     school::Vector{Int}     # Child care, primary school, secondary school, university. Contains both teachers and students.
     workplace::Vector{Int}  # Workplace. Empty for teachers, whose workplace is school.
-    community::Vector{Int}  # Shops, transport, pool, library, etc
+    i_community::Int        # Shops, transport, pool, library, etc. communitycontacts[i_community] == person.id
     i_social::Int           # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, Int[], Int[], Int[], Int[], 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, Int[], Int[], Int[], 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -92,7 +93,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     end
 
     # Sort agents and populate contacts
-    populate_contacts!(agents, params, indata, socialcontacts)
+    populate_contacts!(agents, params, indata, communitycontacts, socialcontacts)
     model
 end
 
@@ -214,14 +215,17 @@ function infect_contacts!(agent::Person, model, t::Int)
     agent.status != :I && return
     agents      = model.agents
     age         = agent.age
-    pr_infect   = p_infect(model.params, age)
+    params      = model.params
+    pr_infect   = p_infect(params, age)
     n_susceptible_contacts = 0
     n_susceptible_contacts = infect_contacts!(:household, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts = infect_contacts!(:school,    active_scenario.school,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts = infect_contacts!(:workplace, active_scenario.workplace, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_contacts!(:community, active_scenario.community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    #n_susceptible_contacts = infect_contacts!(:social,    active_scenario.social,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_social_contacts!(active_scenario.social, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    #n_susceptible_contacts = infect_contacts!(:community, active_scenario.community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(communitycontacts, :i_community, Int(params.n_community_contacts), active_scenario.social,
+                                              pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(socialcontacts, :i_social, Int(params.n_social_contacts), active_scenario.social, 
+                                              pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end
 
@@ -243,36 +247,36 @@ function infect_contacts!(contact_category::Symbol, pr_contact, pr_infect, agent
     n_susceptible_contacts
 end
 
-function infect_social_contacts!(pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    i_social  = agent.i_social
-    agentid   = agent.id
-    ncontacts = Int(model.params.n_social_contacts)
-    halfn     = div(ncontacts, 2)
-    i1        = i_social - halfn
-    i2        = i_social + halfn
+function infect_contacts!(community::Vector{Int}, contactcategory::Symbol, ncontacts_per_person::Int,
+                          pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    npeople = length(community)
+    ncontacts_per_person = min(npeople - 1, ncontacts_per_person)
+    i_agent = getproperty(agent, contactcategory)
+    agentid = agent.id
+    halfn   = div(ncontacts_per_person, 2)
+    i1      = rem(i_agent - halfn + npeople, npeople)
+    i2      = rem(i_agent + halfn, npeople)
     if i1 < i2
         for i = i1:i2
-            id = socialcontacts[i]
+            id = community[i]
             id == agentid && continue
             n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
         end
     elseif i1 > i2
-        n_socialcontacts = length(socialcontacts)
-        for i = i1:n_socialcontacts
-            id = socialcontacts[i]
+        for i = i1:npeople
+            id = community[i]
             id == agentid && continue
             n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
         end
         for i = 1:i2
-            id = socialcontacts[i]
+            id = community[i]
             id == agentid && continue
             n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
         end
     end
-    if isodd(ncontacts)
-        n_socialcontacts = length(socialcontacts)
-        idx = rem(i_social + div(n_socialcontacts, 2), n_socialcontacts)
-        id  = socialcontacts[idx]
+    if isodd(ncontacts_per_person)
+        i   = rem(i_agent + div(npeople, 2), npeople)
+        id  = community[i]
         id != agentid && infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
     end
     n_susceptible_contacts

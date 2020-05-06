@@ -9,7 +9,7 @@ using Random
 
 using Dates
 
-function populate_contacts!(agents, params, indata, socialcontacts)
+function populate_contacts!(agents, params, indata, communitycontacts, socialcontacts)
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
 println("$(now()) Populating households")
 #    populate_households!(agents, age2first, params.pr_1_parent, indata["family_household_distribution"], indata["nonfamily_household_distribution"])
@@ -19,7 +19,7 @@ println("$(now()) Populating schools")
 println("$(now()) Populating work places")
 #    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"])
 println("$(now()) Populating communities")
-#    populate_community_contacts!(agents, params.n_community_contacts)
+    populate_community_contacts!(agents, params.n_community_contacts, communitycontacts)
 println("$(now()) Populating social networks")
     populate_social_contacts!(agents, params.n_social_contacts, socialcontacts)
 println("$(now()) Done")
@@ -523,7 +523,17 @@ end
 ################################################################################
 # Community contacts
 
-populate_community_contacts!(agents, ncontacts) = assign_contacts_regulargraph!(agents, :community, Int(ncontacts))
+function populate_community_contacts!(agents, ncontacts, communitycontacts)
+    npeople = length(agents)
+    for i = 1:npeople
+        push!(communitycontacts, agents[i].id)
+    end
+    shuffle!(communitycontacts)
+    for i = 1:npeople
+        id = communitycontacts[i]
+        agents[id].i_community = i
+    end
+end
 
 ################################################################################
 # Social contacts
