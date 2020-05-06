@@ -100,7 +100,8 @@ mutable struct Person <: AbstractAgent
 
     # Contacts
     household::Vector{Int}  # People in the same household
-    workplace::Vector{Int}  # Child care, school, university, workplace
+    school::Vector{Int}     # Child care, primary school, secondary school, university. Contains both teachers and students.
+    workplace::Vector{Int}  # Workplace. Empty for teachers, whose workplace is school.
     community::Vector{Int}  # Shops, transport, pool, library, etc
     social::Vector{Int}     # Family and/or friends outside the household
 
@@ -108,7 +109,7 @@ mutable struct Person <: AbstractAgent
     age::Int
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, Int[], Int[], Int[], Int[], age)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, Int[], Int[], Int[], Int[], Int[], age)
 
 function exit_S!(agent::Person, model, t)
     agent.status = :E
@@ -196,66 +197,31 @@ function infect_contacts!(agent::Person, model, t::Int)
     agents      = model.agents
     age         = agent.age
     pr_infect   = p_infect(model.params, age)
-    p_workplace = age <= 23 ? active_scenario.school : active_scenario.workplace
     n_susceptible_contacts = 0
-    n_susceptible_contacts = infect_household_contacts!(active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_workplace_contacts!(p_workplace,               pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_community_contacts!(active_scenario.community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_social_contacts!(active_scenario.social,       pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(:household, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(:school,    active_scenario.school,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(:workplace, active_scenario.workplace, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(:community, active_scenario.community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contacts!(:social,    active_scenario.social,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end
 
-function infect_household_contacts!(p_household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    for id in agent.household
+function infect_contacts!(contact_category::Symbol, pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    contactlist = getproperty(agent, contact_category)
+    for id in contactlist
         contact = agents[id]
-        p_household > 0.0 && rand() <= p_household && infect_contact!(pr_infect, contact, model, t)
+        if pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
+            if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
+                execute_event!(exit_S!, contact, model, t, metrics)
+            #elseif contact.status == :R && rand() <= contact.p_reinfection
+            #    execute_event!(exit_S!, contact, model, t, metrics)
+            end
+        end
         if contact.status == :S
             n_susceptible_contacts += 1
         end
     end
     n_susceptible_contacts
-end
-
-function infect_workplace_contacts!(p_workplace, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    for id in agent.workplace
-        contact = agents[id]
-        p_workplace > 0.0 && rand() <= p_workplace && infect_contact!(pr_infect, contact, model, t)
-        if contact.status == :S
-            n_susceptible_contacts += 1
-        end
-    end
-    n_susceptible_contacts
-end
-
-function infect_community_contacts!(p_community, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    for id in agent.community
-        contact = agents[id]
-        p_community > 0.0 && rand() <= p_community && infect_contact!(pr_infect, contact, model, t)
-        if contact.status == :S
-            n_susceptible_contacts += 1
-        end
-    end
-    n_susceptible_contacts
-end
-
-function infect_social_contacts!(p_social, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    for id in agent.social
-        contact = agents[id]
-        p_social > 0.0 && rand() <= p_social && infect_contact!(pr_infect, contact, model, t)
-        if contact.status == :S
-            n_susceptible_contacts += 1
-        end
-    end
-    n_susceptible_contacts
-end
-
-"Infect contact with probability p_infect."
-function infect_contact!(pr_infect::Float64, contact::Person, model, t::Int)
-    if contact.status == :S && rand() <= pr_infect
-        execute_event!(exit_S!, contact, model, t, metrics)
-#   elseif contact.status == :R && rand() <= contact.p_reinfection
-#       execute_event!(exit_S!, contact, model, t, metrics)
-    end
 end
 
 ################################################################################

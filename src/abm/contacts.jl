@@ -442,7 +442,7 @@ function set_student_to_student_contacts!(agents, school::School, ncontacts_s2s)
         isempty(students) && continue
         nstudents        = length(students)
         vertexid2agentid = Dict(i => students[i] for i = 1:nstudents)
-        assign_contacts_regulargraph!(agents, :workplace, min(Int(ncontacts_s2s), nstudents), vertexid2agentid)
+        assign_contacts_regulargraph!(agents, :school, min(Int(ncontacts_s2s), nstudents), vertexid2agentid)
     end
 end
 
@@ -461,12 +461,12 @@ function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s)
     ncontacts_t2s = Int(min(ncontacts_t2s, nstudents))  # Can't contact more students than are in the school
     idx = 0
     for teacherid in teachers
-        teacher_contactlist = agents[teacherid].workplace
+        teacher_contactlist = agents[teacherid].school
         for i = 1:ncontacts_t2s
             idx += 1
             idx  = idx > nstudents ? 1 : idx
             studentid = studentids[idx]
-            student_contactlist = agents[studentid].workplace
+            student_contactlist = agents[studentid].school
             append_contact!(teacherid, studentid, teacher_contactlist)
             append_contact!(studentid, teacherid, student_contactlist)
         end
@@ -478,7 +478,7 @@ function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t)
     isempty(teachers) && return
     nteachers        = length(teachers)
     vertexid2agentid = Dict(i => teachers[i] for i = 1:nteachers)
-    assign_contacts_regulargraph!(agents, :workplace, min(Int(ncontacts_t2t), nteachers), vertexid2agentid)
+    assign_contacts_regulargraph!(agents, :school, min(Int(ncontacts_t2t), nteachers), vertexid2agentid)
 end
 
 ################################################################################
@@ -491,8 +491,8 @@ function populate_workplace_contacts!(agents, ncontacts, workplaces::DataFrame)
     workplace_size   = draw_nworkers(workplaces, d_workplace_size)
     adultid2agentid  = Dict{Int, Int}()
     for agent in agents
-        agent.age <= 23               && continue  # People under 23 are assumed to be in education not the workplace
-        !isempty(agent.workplace) > 0 && continue  # Adult is employed at a school
+        agent.age <= 23        && continue  # People under 23 are assumed to be in education not the workplace
+        !isempty(agent.school) && continue  # Adult is employed at a school
         adultid += 1
         adultid2agentid[adultid] = agent.id
         if adultid == workplace_size  # Work place is full...record the workplace contacts and set a new empty workplace.
@@ -510,7 +510,6 @@ function draw_nworkers(workplaces::DataFrame, d_workplace_size)
     ub = workplaces[i, :nemployees_ub]
     rand(lb:ub) + 1
 end
-
 
 populate_community_contacts!(agents, ncontacts) = assign_contacts_regulargraph!(agents, :community, Int(ncontacts))
 populate_social_contacts!(agents, ncontacts)    = assign_contacts_regulargraph!(agents, :social,    Int(ncontacts))
