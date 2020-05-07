@@ -36,26 +36,6 @@ function append_contact!(agentid, contactid::Int, contactlist::Vector{Int})
     push!(contactlist, contactid)
 end
 
-"Append contactids to agent.category"
-function append_contacts!(agent, category::Symbol, contactids::Vector{Int})
-    agentid = agent.id
-    contactlist = getproperty(agent, category)  # Vector{Int}
-    for contactid in contactids
-        append_contact!(agentid, contactid, contactlist)
-    end
-end
-
-"Randomly assign ncontacts to each agent in agents."
-function assign_contacts_regulargraph!(agents, contactcategory::Symbol, ncontacts::Int)
-    npeople   = length(agents)
-    ncontacts = adjust_ncontacts_for_regular_graph(npeople, ncontacts)  # Ensure a regular graph can be constructed
-    g         = random_regular_graph(npeople, ncontacts)  # npeople (vertices) each with ncontacts (edges to ncontacts other vertices)
-    adjlist   = g.fadjlist
-    for agent in agents
-        setproperty!(agent, contactcategory, adjlist[agent.id])
-    end
-end
-
 "Randomly assign ncontacts to each agent whose id is a value of vertexid2agentid."
 function assign_contacts_regulargraph!(agents, contactcategory::Symbol, ncontacts::Int, vertexid2agentid)
     nvertices = length(vertexid2agentid)
