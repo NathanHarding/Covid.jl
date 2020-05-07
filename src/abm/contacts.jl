@@ -9,7 +9,7 @@ using Random
 
 using Dates
 
-function populate_contacts!(agents, params, indata, communitycontacts, socialcontacts)
+function populate_contacts!(agents, params, indata, workplaces, communitycontacts, socialcontacts)
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
 println("$(now()) Populating households")
 #    populate_households!(agents, age2first, params.pr_1_parent, indata["family_household_distribution"], indata["nonfamily_household_distribution"])
@@ -17,7 +17,7 @@ println("$(now()) Populating schools")
 #    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
 #                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
 println("$(now()) Populating work places")
-#    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"])
+    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"], workplaces)
 println("$(now()) Populating communities")
     populate_community_contacts!(agents, params.n_community_contacts, communitycontacts)
 println("$(now()) Populating social networks")
@@ -493,30 +493,30 @@ end
 ################################################################################
 # Workplace contacts
 
-function populate_workplace_contacts!(agents, ncontacts, workplaces::DataFrame)
-    nagents = size(agents, 1)
-    adultid = 0
-    d_workplace_size = Categorical(workplaces.proportion)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
-    workplace_size   = draw_nworkers(workplaces, d_workplace_size)
-    adultid2agentid  = Dict{Int, Int}()
-    for agent in agents
-        agent.age <= 23        && continue  # People under 23 are assumed to be in education not the workplace
-        !isempty(agent.school) && continue  # Adult is employed at a school
-        adultid += 1
-        adultid2agentid[adultid] = agent.id
-        if adultid == workplace_size  # Work place is full...record the workplace contacts and set a new empty workplace.
-            assign_contacts_regulargraph!(agents, :workplace, min(Int(ncontacts), workplace_size), adultid2agentid)
-            adultid = 0
-            adultid2agentid = Dict{Int, Int}()
-            workplace_size  = draw_nworkers(workplaces, d_workplace_size)
+function populate_workplace_contacts!(agents, ncontacts, workplace_distribution::DataFrame, workplaces::Vector{Vector{Int}})
+    d_nworkers       = Categorical(workplace_distribution.proportion)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
+    unplaced_workers = Set([agent.id for agent in agents if agent.age > 23 && isnothing(agent.school)])
+    imax = length(unplaced_workers)
+    for i = 1:imax
+        isempty(unplaced_workers) && break
+        nworkers  = draw_nworkers(workplace_distribution, d_nworkers)
+        nworkers  = nworkers > length(unplaced_workers) ? length(unplaced_workers) : nworkers
+        workplace = fill(0, nworkers)
+        idx       = size(workplaces, 1) + 1  # workplaces[idx] = new workplace
+        for j = 1:nworkers
+            workerid = rand(unplaced_workers)
+            pop!(unplaced_workers, workerid)
+            workplace[j] = workerid
+            agents[workerid].ij_workplace = (idx, j)
         end
+        push!(workplaces, workplace)
     end
 end
 
-function draw_nworkers(workplaces::DataFrame, d_workplace_size)
+function draw_nworkers(workplace_distribution::DataFrame, d_workplace_size)
     i  = rand(d_workplace_size)
-    lb = workplaces[i, :nemployees_lb]
-    ub = workplaces[i, :nemployees_ub]
+    lb = workplace_distribution[i, :nemployees_lb]
+    ub = workplace_distribution[i, :nemployees_ub]
     rand(lb:ub) + 1
 end
 
