@@ -17,9 +17,9 @@ function populate_contacts!(agents, params, indata,
     populate_households_with_children!(households, agents, age2first, params.pr_1_parent, indata["family_household_distribution"])
     @info "$(now()) Populating households without children"
     populate_households_without_children!(households, agents, age2first, indata["nonfamily_household_distribution"])
-#    @info "$(now()) Populating schools"
-#    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
-#                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
+    @info "$(now()) Populating schools"
+    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
+                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
     @info "$(now()) Populating work places"
     populate_workplace_contacts!(workplaces, agents, params.n_workplace_contacts, indata["workplace_distribution"])
     @info "$(now()) Populating communities"
@@ -63,8 +63,13 @@ function assign_contacts_regulargraph!(agents, contactcategory::Symbol, ncontact
     g = random_regular_graph(nvertices, ncontacts)  # nvertices each with ncontacts (edges to ncontacts other vertices)
     adjlist = g.fadjlist
     for (vertexid, agentid) in vertexid2agentid
+        agent = agents[agentid]
         contactlist_vertex = adjlist[vertexid]  # Contact list as vertexid domain...convert to agentid domain
-        contactlist_agent  = getproperty(agents[agentid], contactcategory)
+        contactlist_agent  = getproperty(agent, contactcategory)
+        if isnothing(contactlist_agent)
+            setproperty!(agent, contactcategory, Int[])
+            contactlist_agent = getproperty(agent, contactcategory)
+        end
         for vertexid in contactlist_vertex
             append_contact!(agentid, vertexid2agentid[vertexid], contactlist_agent)
         end
@@ -290,12 +295,7 @@ mutable struct School
     age2students::Dict{Int, Vector{Int}}  # Classes: age => [childid1, ...]
 
     function School(max_nteachers, max_nstudents_per_level, teachers, age2students)
-        teacher2student_ratio = 1 / 15  # Need at least 1 teacher to 15 students
-        nlevels       = length(age2students)
-        max_nstudents = nlevels * max_nstudents_per_level
-        min_nteachers = round(Int, teacher2student_ratio * max_nstudents)
-        max_nteachers < min_nteachers && error("Not enough teachers")  # Need 1.5 per level, 6 levels
-        max_nstudents_per_level < 5    && error("max_nstudents_per_level must be at least 5")
+        max_nstudents_per_level < 1 && error("max_nstudents_per_level must be at least 1")
         new(max_nteachers, max_nstudents_per_level, teachers, age2students)
     end
 end
@@ -375,7 +375,7 @@ function populate_school_contacts!(agents, age2first, primaryschool_distribution
     max_teacher_age   = 65
     unplaced_students = Dict(age => Set(age2first[age]:(age2first[age+1] - 1)) for age = 0:23)
     unplaced_teachers = Set((age2first[min_teacher_age]):(age2first[max_teacher_age] - 1))
-    imax              = length(unplaced_students)
+    imax              = sum([length(v) for (k, v) in unplaced_students])
     for i = 1:imax  # Cap the number of iterations by placing at least 1 child per iteration
         # Init school
         agentid = nothing
@@ -414,8 +414,8 @@ function populate_school_contacts!(agents, age2first, primaryschool_distribution
 
         # Set contact lists
         set_student_to_student_contacts!(agents, school, ncontacts_s2s)
-        set_teacher_to_student_contacts!(agents, school, ncontacts_t2s)
         set_teacher_to_teacher_contacts!(agents, school, ncontacts_t2t)
+        set_teacher_to_student_contacts!(agents, school, ncontacts_t2s)
     end
 end
 
@@ -427,6 +427,14 @@ function set_student_to_student_contacts!(agents, school::School, ncontacts_s2s)
         vertexid2agentid = Dict(i => students[i] for i = 1:nstudents)
         assign_contacts_regulargraph!(agents, :school, min(Int(ncontacts_s2s), nstudents), vertexid2agentid)
     end
+end
+
+function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t)
+    teachers = school.teachers
+    isempty(teachers) && return
+    nteachers        = length(teachers)
+    vertexid2agentid = Dict(i => teachers[i] for i = 1:nteachers)
+    assign_contacts_regulargraph!(agents, :school, min(Int(ncontacts_t2t), nteachers), vertexid2agentid)
 end
 
 function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s)
@@ -454,14 +462,6 @@ function set_teacher_to_student_contacts!(agents, school::School, ncontacts_t2s)
             append_contact!(studentid, teacherid, student_contactlist)
         end
     end
-end
-
-function set_teacher_to_teacher_contacts!(agents, school::School, ncontacts_t2t)
-    teachers = school.teachers
-    isempty(teachers) && return
-    nteachers        = length(teachers)
-    vertexid2agentid = Dict(i => teachers[i] for i = 1:nteachers)
-    assign_contacts_regulargraph!(agents, :school, min(Int(ncontacts_t2t), nteachers), vertexid2agentid)
 end
 
 ################################################################################

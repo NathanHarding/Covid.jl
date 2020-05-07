@@ -29,7 +29,7 @@ const metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R =>
 const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
 # Conveniences
-const status0 = Symbol[]          # Used when resetting the model at the beginning of a run
+const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
 const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
 const workplaces = Vector{Int}[]  # workplaces[i][j] is the id of the jth worker in the ith workplace.
 const communitycontacts = Int[]   # Contains person IDs. Social contacts can be derived for each person.
@@ -53,7 +53,7 @@ mutable struct Person <: AbstractAgent
     age::Int
 
     # Contacts
-    i_household::Int    # Person is in households[i_household].
+    i_household::Int  # Person is in households[i_household].
     school::Union{Nothing, Vector{Int}}  # Child care, primary school, secondary school, university. Not empty for teachers and students.
     ij_workplace::Union{Nothing, Tuple{Int, Int}}  # Empty for children and teachers (whose workplace is school). person.id == workplaces[i][j].
     i_community::Int  # Shops, transport, pool, library, etc. communitycontacts[i_community] == person.id
@@ -65,7 +65,6 @@ Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, 0, nothing, 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
     agedist  = indata["age_distribution"]
-    #npeople  = round(Int, 0.1 * sum(agedist.count))  # TODO: Use entire population
     npeople  = round(Int, sum(agedist.count))
     agents   = Vector{Person}(undef, npeople)
     schedule = init_schedule(cfg.maxtime)
