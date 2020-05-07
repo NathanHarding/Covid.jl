@@ -13,7 +13,7 @@ function main(configfile::String)
     cfg = abm.Config(configfile)
 
     @info "$(now()) Importing input data"
-    indata = import_data(cfg.input_data)
+    indata = import_data(cfg.datadir, cfg.input_data)
 
     @info "$(now()) Initialising model"
     params  = construct_params(indata["params"])
@@ -28,7 +28,7 @@ function main(configfile::String)
     # Run scenarios
     for (scenarioname, t2scenario) in cfg.scenarios
         @info "$(now()) Running $(scenarioname) scenario"
-        outfile = joinpath(cfg.output_directory, "$(scenarioname).csv")
+        outfile = joinpath(cfg.datadir, "output", "$(scenarioname).csv")
         for r in 1:cfg.nruns_per_scenario
             @info "$(now())    Starting run $(r)"
             abm.reset_model!(model)
@@ -50,10 +50,11 @@ end
 ################################################################################
 # Utils
 
-function import_data(tablename2datafile::Dict{String, String})
+function import_data(datadir::String, tablename2datafile::Dict{String, String})
     result = Dict{String, DataFrame}()
     for (tablename, datafile) in tablename2datafile
-        result[tablename] = DataFrame(CSV.File(datafile))
+        filename = joinpath(datadir, "input", datafile)
+        result[tablename] = DataFrame(CSV.File(filename))
     end
     result
 end

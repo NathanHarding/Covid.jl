@@ -3,10 +3,12 @@
 # Run the code
 
 ```julia
+#repodir = "C:\\projects\\repos\\Covid.jl"
+repodir = "C:\\Users\\jlaw1812\\repos\\Covid.jl"
 using Pkg
-Pkg.activate("C:\\Users\\jlaw1812\\repos\\Covid.jl")
+Pkg.activate(repodir)
 using Covid
-Covid.main("C:\\Users\\jlaw1812\\repos\\Covid.jl\\config\\config.yml")
+Covid.main(joinpath(repodir, "config", "config.yml"))
 ```
 
 ## Time

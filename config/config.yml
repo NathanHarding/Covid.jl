@@ -1,13 +1,13 @@
-#output_directory: "C:\\projects\\data\\dhhs\\covid-abm\\output"
-output_directory: "C:\\Users\\jlaw1812\\data\\covid-abm\\output"
+#datadir: "C:\\projects\\data\\dhhs\\covid-abm"
+datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
 input_data:
-    params:                           "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\params.tsv"
-    age_distribution:                 "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\population_by_age_VIC.tsv"
-    workplace_distribution:           "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\workplace_by_size_VIC.tsv"
-    primaryschool_distribution:       "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\avg_yearlevel_size_distribution_primary.tsv"
-    secondaryschool_distribution:     "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\avg_yearlevel_size_distribution_secondary.tsv"
-    family_household_distribution:    "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\family_households.tsv"
-    nonfamily_household_distribution: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\nonfamily_households.tsv"
+    params:                           "params.tsv"
+    age_distribution:                 "population_by_age_VIC.tsv"
+    workplace_distribution:           "workplace_by_size_VIC.tsv"
+    primaryschool_distribution:       "avg_yearlevel_size_distribution_primary.tsv"
+    secondaryschool_distribution:     "avg_yearlevel_size_distribution_secondary.tsv"
+    family_household_distribution:    "family_households.tsv"
+    nonfamily_household_distribution: "nonfamily_households.tsv"
 maxtime: 180
 nruns_per_scenario: 3
 initial_status_counts: {E: 1}
@@ -21,4 +21,4 @@ scenarios:
         0:  {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # 26th Feb. Normal.
         18: {household: 0.5, school: 0.0001, workplace: 0.0001, community: 0.0001, social: 0.0001}  # 15th Mar. Business restrictions.
         28: {household: 0.5, school: 0.000001, workplace: 0.000001, community: 0.000001, social: 0.000001}  # 25th Mar. Stage 2 restrictions + school closures.
-        #33: {household: 1.0, school: 0.0, workplace: 0.1, community: 0.1, social: 0.1}  # 30th Mar. Stage 3 restrictions. WFH.
+#        #33: {household: 1.0, school: 0.0, workplace: 0.1, community: 0.1, social: 0.1}  # 30th Mar. Stage 3 restrictions. WFH.
