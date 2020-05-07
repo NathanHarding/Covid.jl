@@ -1,28 +1,31 @@
 module contacts
 
-export populate_contacts!
+export populate_contacts!, Household, School
 
 using DataFrames
+using Dates
 using Distributions
 using LightGraphs
+using Logging
 using Random
 
-using Dates
-
-function populate_contacts!(agents, params, indata, workplaces, communitycontacts, socialcontacts)
+function populate_contacts!(agents, params, indata,
+                            households, workplaces::Vector{Vector{Int}},
+                            communitycontacts::Vector{Int}, socialcontacts::Vector{Int})
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
-println("$(now()) Populating households")
-#    populate_households!(agents, age2first, params.pr_1_parent, indata["family_household_distribution"], indata["nonfamily_household_distribution"])
-println("$(now()) Populating schools")
+    @info "$(now()) Populating households with children"
+    populate_households_with_children!(households, agents, age2first, params.pr_1_parent, indata["family_household_distribution"])
+    @info "$(now()) Populating households without children"
+    populate_households_without_children!(households, agents, age2first, indata["nonfamily_household_distribution"])
+#    @info "$(now()) Populating schools"
 #    populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
 #                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
-println("$(now()) Populating work places")
-    populate_workplace_contacts!(agents, params.n_workplace_contacts, indata["workplace_distribution"], workplaces)
-println("$(now()) Populating communities")
-    populate_community_contacts!(agents, params.n_community_contacts, communitycontacts)
-println("$(now()) Populating social networks")
-    populate_social_contacts!(agents, params.n_social_contacts, socialcontacts)
-println("$(now()) Done")
+    @info "$(now()) Populating work places"
+    populate_workplace_contacts!(workplaces, agents, params.n_workplace_contacts, indata["workplace_distribution"])
+    @info "$(now()) Populating communities"
+    populate_community_contacts!(communitycontacts, agents, params.n_community_contacts)
+    @info "$(now()) Populating social networks"
+    populate_social_contacts!(socialcontacts, agents, params.n_social_contacts)
 end
 
 ################################################################################
@@ -158,22 +161,6 @@ function push_child!(hh::Household, id)
     true  # Success
 end
 
-function populate_households!(agents, age2first, pr_1_parent, family_household_distribution, nonfamily_household_distribution)
-    hh2count = Dict{Tuple{Int, Int}, Int}()  # (nadults, nchildren) => count(households). For evaluation only.
-    populate_households_with_children!(agents, age2first, pr_1_parent, hh2count, family_household_distribution)
-    populate_households_without_children!(agents, age2first, hh2count, nonfamily_household_distribution)
-#=
-# Evaluation code
-nh = sum(collect(values(hh2count)))
-for (k, v) in hh2count
-    p = 100 * round(v/nh; digits=3)
-    println("$(k)  => $(v),   $(p)%")
-end
-println(nh)
-error("early finish")
-=#
-end
-
 """
 - Input data: 
   - d_nparents: Pr(nadults == k | nchildren > 0) = [0.26, 0.74]
@@ -187,7 +174,7 @@ while n_unplaced_children > 0
        - adults at least 20 years older than oldest child
     set household contacts
 """
-function populate_households_with_children!(agents, age2first, pr_1_parent, hh2count, family_household_distribution)
+function populate_households_with_children!(households, agents, age2first, pr_1_parent, family_household_distribution)
     d_nresidents      = Categorical(family_household_distribution.proportion)
     d_nparents        = Categorical([pr_1_parent, 1.0 - pr_1_parent])
     unplaced_children = Set(1:(age2first[18] - 1))
@@ -195,9 +182,10 @@ function populate_households_with_children!(agents, age2first, pr_1_parent, hh2c
     imax = length(unplaced_children)
     for i = 1:imax  # Cap the number of iterations by placing at least 1 child per iteration
         # Init household
-        hh = draw_household_with_children(unplaced_parents, unplaced_children, family_household_distribution::DataFrame, d_nresidents, d_nparents)
-        np = hh.max_nadults
-        nc = hh.max_nchildren
+        hh  = draw_household_with_children(unplaced_parents, unplaced_children, family_household_distribution::DataFrame, d_nresidents, d_nparents)
+        np  = hh.max_nadults
+        nc  = hh.max_nchildren
+        idx = size(households, 1) + 1  # households[idx] = new household
 
         # Select children
         min_age = 0   # Minimum age of the next selected child
@@ -205,10 +193,12 @@ function populate_households_with_children!(agents, age2first, pr_1_parent, hh2c
         age_youngest_child = 1000
         age_oldest_child   = -1
         for j = 1:nc
-            child_id = sample_person(unplaced_children, min_age, max_age, agents, age2first)
-            pop!(unplaced_children, child_id)
-            push_child!(hh, child_id)
-            age = agents[child_id].age
+            childid = sample_person(unplaced_children, min_age, max_age, agents, age2first)
+            pop!(unplaced_children, childid)
+            push_child!(hh, childid)
+            child = agents[childid]
+            child.i_household = idx
+            age = child.age
             age_youngest_child = age < age_youngest_child ? age : age_youngest_child
             age_oldest_child   = age > age_oldest_child   ? age : age_oldest_child
             min_age = max(0,  age_youngest_child - 3 * (nc - 1))
@@ -219,14 +209,12 @@ function populate_households_with_children!(agents, age2first, pr_1_parent, hh2c
         min_parent_age = age_oldest_child + 20
         max_parent_age = age_oldest_child + 45
         for j = 1:np
-            parent_id = sample_person(unplaced_parents, min_parent_age, max_parent_age, agents, age2first)
-            pop!(unplaced_parents, parent_id)
-            push_adult!(hh, parent_id)
+            parentid = sample_person(unplaced_parents, min_parent_age, max_parent_age, agents, age2first)
+            pop!(unplaced_parents, parentid)
+            push_adult!(hh, parentid)
+            agents[parentid].i_household = idx
         end
-
-        # Set household contacts
-        set_household_contacts!(agents, hh)
-        hh2count[(np, nc)] = haskey(hh2count, (np, nc)) ? hh2count[(np, nc)] + 1 : 1
+        push!(households, hh)
 
         # Stopping criteria
         isempty(unplaced_children) && break
@@ -244,27 +232,26 @@ while n_unplaced_adults > 0
         - No constraints at the moment
     set household contacts
 """
-function populate_households_without_children!(agents, age2first, hh2count, nonfamily_household_distribution::DataFrame)
+function populate_households_without_children!(households::Vector{Household}, agents, age2first, nonfamily_household_distribution::DataFrame)
     d_nadults = Categorical(nonfamily_household_distribution.proportion)
-    unplaced_adults = Set([agent.id for agent in agents if isempty(agent.household)])
+    unplaced_adults = Set([agent.id for agent in agents if agent.i_household == 0])
     imax = length(unplaced_adults)
     for i = 1:imax  # Cap the number of iterations by placing at least 1 child per iteration
         # Init household
-        hh = draw_household_without_children(unplaced_adults, nonfamily_household_distribution, d_nadults)
-        na = hh.max_nadults
+        hh  = draw_household_without_children(unplaced_adults, nonfamily_household_distribution, d_nadults)
+        na  = hh.max_nadults
+        idx = size(households, 1) + 1  # households[idx] = new household
 
         # Select adult/s
         for j = 1:na
-            adult_id = rand(unplaced_adults)
-            pop!(unplaced_adults, adult_id)
-            push_adult!(hh, adult_id)
+            adultid = rand(unplaced_adults)
+            pop!(unplaced_adults, adultid)
+            push_adult!(hh, adultid)
+            agents[adultid].i_household = idx
         end
+        push!(households, hh)
 
-        # Set household contacts
-        set_household_contacts!(agents, hh)
-        hh2count[(na, 0)] = haskey(hh2count, (na, 0)) ? hh2count[(na, 0)] + 1 : 1
-
-        # Stopping criteria
+        # Stopping criterion
         isempty(unplaced_adults) && break
     end
 end
@@ -287,19 +274,6 @@ function draw_household_without_children(unplaced_adults, nonfamily_household_di
     nadults = nonfamily_household_distribution[i, :nadults]
     nadults = nadults > n_unplaced_adults  ? n_unplaced_adults : nadults
     Household(nadults, 0)
-end
-
-function set_household_contacts!(agents, household)
-    adults   = household.adults
-    children = household.children
-    for adult in adults
-        append_contacts!(agents[adult], :household, adults)
-        append_contacts!(agents[adult], :household, children)
-    end
-    for child in children
-        append_contacts!(agents[child], :household, adults)
-        append_contacts!(agents[child], :household, children)
-    end
 end
 
 ################################################################################
@@ -493,7 +467,7 @@ end
 ################################################################################
 # Workplace contacts
 
-function populate_workplace_contacts!(agents, ncontacts, workplace_distribution::DataFrame, workplaces::Vector{Vector{Int}})
+function populate_workplace_contacts!(workplaces::Vector{Vector{Int}}, agents, ncontacts, workplace_distribution::DataFrame)
     d_nworkers       = Categorical(workplace_distribution.proportion)  # Categories are: 0 employees, 1-4, 5-19, 20-199, 200+
     unplaced_workers = Set([agent.id for agent in agents if agent.age > 23 && isnothing(agent.school)])
     imax = length(unplaced_workers)
@@ -523,7 +497,7 @@ end
 ################################################################################
 # Community contacts
 
-function populate_community_contacts!(agents, ncontacts, communitycontacts)
+function populate_community_contacts!(communitycontacts::Vector{Int}, agents, ncontacts)
     npeople = length(agents)
     for i = 1:npeople
         push!(communitycontacts, agents[i].id)
@@ -538,7 +512,7 @@ end
 ################################################################################
 # Social contacts
 
-function populate_social_contacts!(agents, ncontacts, socialcontacts)
+function populate_social_contacts!(socialcontacts::Vector{Int}, agents, ncontacts)
     npeople = length(agents)
     for i = 1:npeople
         push!(socialcontacts, agents[i].id)

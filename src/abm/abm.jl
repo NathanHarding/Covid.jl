@@ -30,6 +30,7 @@ const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
 # Conveniences
 const status0 = Symbol[]          # Used when resetting the model at the beginning of a run
+const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
 const workplaces = Vector{Int}[]  # workplaces[i][j] is the id of the jth worker in the ith workplace.
 const communitycontacts = Int[]   # Contains person IDs. Social contacts can be derived for each person.
 const socialcontacts    = Int[]
@@ -52,14 +53,14 @@ mutable struct Person <: AbstractAgent
     age::Int
 
     # Contacts
-    household::Vector{Int}  # People in the same household
+    i_household::Int    # Person is in households[i_household].
     school::Union{Nothing, Vector{Int}}  # Child care, primary school, secondary school, university. Not empty for teachers and students.
     ij_workplace::Union{Nothing, Tuple{Int, Int}}  # Empty for children and teachers (whose workplace is school). person.id == workplaces[i][j].
     i_community::Int  # Shops, transport, pool, library, etc. communitycontacts[i_community] == person.id
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, Int[], nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -94,7 +95,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     end
 
     # Sort agents and populate contacts
-    populate_contacts!(agents, params, indata, workplaces, communitycontacts, socialcontacts)
+    populate_contacts!(agents, params, indata, households, workplaces, communitycontacts, socialcontacts)
     model
 end
 
@@ -219,20 +220,34 @@ function infect_contacts!(agent::Person, model, t::Int)
     params      = model.params
     pr_infect   = p_infect(params, age)
     n_susceptible_contacts = 0
-    #n_susceptible_contacts = infect_contacts!(:household, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_household_contacts!(households, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     #n_susceptible_contacts = infect_contacts!(:school,    active_scenario.school,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
     if !isnothing(agent.ij_workplace)
         i, j = agent.ij_workplace
-        n_susceptible_contacts = infect_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), active_scenario.workplace,
-                                                  pr_infect, agent, agents, model, t, n_susceptible_contacts)
+        n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), active_scenario.workplace,
+                                                            pr_infect, agent, agents, model, t, n_susceptible_contacts)
     end
-    n_susceptible_contacts = infect_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), active_scenario.community,
-                                              pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), active_scenario.social, 
-                                              pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_community_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), active_scenario.community,
+                                                        pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_community_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), active_scenario.social, 
+                                                        pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end
 
+function infect_household_contacts!(households, pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    agentid   = agent.id
+    household = households[agent.i_household]
+    for id in household.adults
+        id == agentid && continue
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+    end
+    for id in household.children
+        id == agentid && continue
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+    end
+    n_susceptible_contacts
+end
+#=
 function infect_contacts!(contact_category::Symbol, pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     contactlist = getproperty(agent, contact_category)
     for id in contactlist
@@ -250,9 +265,9 @@ function infect_contacts!(contact_category::Symbol, pr_contact, pr_infect, agent
     end
     n_susceptible_contacts
 end
-
-function infect_contacts!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int,
-                          pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+=#
+function infect_community_contacts!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int,
+                                    pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     i_agent == 0 && return n_susceptible_contacts
     agentid = agent.id
     npeople = length(community)
