@@ -1,5 +1,5 @@
-#datadir: "C:\\projects\\data\\dhhs\\covid-abm"
-datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
+datadir: "C:\\projects\\data\\dhhs\\covid-abm"
+#datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
 input_data:
     params:                           "params.tsv"
     age_distribution:                 "population_by_age_VIC.tsv"

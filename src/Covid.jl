@@ -5,7 +5,7 @@ using DataFrames
 using Dates
 using Logging
 
-include(joinpath("abm", "abm.jl"))  # Depends on: core, abm/config, abm/contacts
+include("abm.jl")  # Depends on: core, config, contacts
 using .abm
 
 function main(configfile::String)

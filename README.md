@@ -1,15 +1,32 @@
 # Covid.jl
 
-# Run the code
+## Run the code
 
 ```julia
-#repodir = "C:\\projects\\repos\\Covid.jl"
-repodir = "C:\\Users\\jlaw1812\\repos\\Covid.jl"
+repodir = "C:\\projects\\repos\\Covid.jl"
+#repodir = "C:\\Users\\jlaw1812\\repos\\Covid.jl"
 using Pkg
 Pkg.activate(repodir)
 using Covid
 Covid.main(joinpath(repodir, "config", "config.yml"))
 ```
+
+## States
+
+- Susceptible: Not infected (next state is E)
+- Exposed: Infected but asymptomatic and not infectious (next state is I1)
+- I1: Infectious and asymptomatic (next state is I2 or R)
+- I2: Infectious and symptomatic (next state is H or R). Assume a proportion of these cases get tested.
+- Hospitalised: Admitted to a ward bed (next state is C or R)
+- ICU: Admitted to ICU but not on a ventilator (next state is V or R)
+- Ventilated: On a ventilator in ICU (next state is D or R)
+- Recovered (final state)
+- Deceased (final state)
+
+The _actual_ number of new cases is E.
+The _observed_ number of new cases is I3 + H_from_I2 (I1 people, who are asymptomatic, are not admitted to hospital).
+The _observed_ number of active cases is alpha*I2 + H + ICU + V.
+The _observed_ number of cumulative cases is active cases + inactive cases, where inactive cases = R + D.
 
 ## Time
 

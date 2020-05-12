@@ -13,7 +13,7 @@ export init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exp
 using DataFrames
 using Distributions
 
-include(joinpath("..", "core.jl"))
+include("core.jl")
 using .core
 import .core: unfit!  # To be extended by model-specific method
 import .core: fit!    # To be extended by model-specific method
@@ -25,7 +25,7 @@ include("contacts.jl")
 using .config
 using .contacts
 
-const metrics = Dict(:S => 0, :E => 0, :I => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
 const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
 # Conveniences
@@ -47,7 +47,7 @@ end
 
 mutable struct Person <: AbstractAgent
     id::Int
-    status::Symbol  # S, E, I, H, C, V, R, D
+    status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
 
     # Risk factors
     age::Int
@@ -99,101 +99,115 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
 end
 
 function reset_model!(model)
-    # Empty the schedule
-    model.schedule = init_schedule(model.maxtime)
-
-    # Reset each agent's state and schedule a state change
+    model.schedule = init_schedule(model.maxtime)  # Empty the schedule
     agents = model.agents
     params = model.params
-    n = length(agents)
-    for id = 1:n
-        agent  = agents[id]
-        status = status0[id]
-        agent.status = status
+    for agent in agents  # Reset each agent's state and schedule a state change
+        status = status0[agent.id]
         if status == :E
-            dur = dur_E(params, agent.age)
-            schedule!(id, dur, exit_E!, model)
-        elseif status == :I
-            dur = dur_I(params, agent.age)
-            schedule!(id, dur, exit_I!, model)
+            to_E!(agent, model, 0)
+        elseif status == :I1
+            to_I1!(agent, model, 0)
+        elseif status == :I2
+            to_I2!(agent, model, 0)
         elseif status == :H
-            dur = dur_H(params, agent.age)
-            schedule!(id, dur, exit_H!, model)
+            to_H!(agent, model, 0)
         elseif status == :C
-            dur = dur_C(params, agent.age)
-            schedule!(id, dur, exit_C!, model)
+            to_C!(agent, model, 0)
         elseif status == :V
-            dur = dur_V(params, agent.age)
-            schedule!(id, dur, exit_V!, model)
+            to_V!(agent, model, 0)
+        elseif status == :R
+            to_R!(agent, model, 0)
+        elseif status == :D
+            to_D!(agent, model, 0)
         end
     end
 end
 
 ################################################################################
 
-function exit_S!(agent::Person, model, t)
+function to_E!(agent::Person, model, t)
     agent.status = :E
     dur = dur_E(model.params, agent.age)
-    schedule!(agent.id, t + dur, exit_E!, model)
+    schedule!(agent.id, t + dur, to_I1!, model)
 end
 
-function exit_E!(agent::Person, model, t)
-    agent.status = :I
-    dur = dur_I(model.params, agent.age)
-    schedule!(agent.id, t + dur, exit_I!, model)
+function to_I1!(agent::Person, model, t)
+    agent.status = :I1
+    params = model.params
+    age    = agent.age
+    if rand() <= p_I2(params, age)  # Person will progress from I1 to I2
+        dur = dur_I1(params, age)
+        schedule!(agent.id, t + dur, to_I2!, model)
+    else  # Person will progress from I1 to Recovered
+        dur = dur_I1(params, age) + dur_I2(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation duration
+        schedule!(agent.id, t + dur, to_R!, model)
+    end
     infect_contacts!(agent, model, t)  # Schedules an immediate status change for each contact
 end
 
-function exit_I!(agent::Person, model, t)
+function to_I2!(agent::Person, model, t)
+    agent.status = :I2
     params = model.params
     age    = agent.age
-    if rand() <= p_H(params, age)
-        agent.status = :H
-        dur = dur_H(params, age)
-        schedule!(agent.id, t + dur, exit_H!, model)
-    else
-        agent.status = :R
+    dur    = dur_I2(params, age)
+    if rand() <= p_H(params, age)  # Person will progress from I2 to H
+        schedule!(agent.id, t + dur, to_H!, model)
+    else  # Person will progress from I2 to Recovered
+        schedule!(agent.id, t + dur, to_R!, model)
     end
 end
 
-function exit_H!(agent::Person, model, t)
+function to_H!(agent::Person, model, t)
+    agent.status = :H
     params = model.params
     age    = agent.age
-    if rand() <= p_C(params, age)
-        agent.status = :C
-        dur = dur_C(params, age)
-        schedule!(agent.id, t + dur, exit_C!, model)
-    else
-        agent.status = :R
+    dur    = dur_H(params, age)
+    if rand() <= p_C(params, age)  # Person will progress from H to ICU
+        schedule!(agent.id, t + dur, to_C!, model)
+    else  # Person will progress from H to Recovered
+        schedule!(agent.id, t + dur, to_R!, model)
     end
 end
 
-function exit_C!(agent::Person, model, t)
+function to_C!(agent::Person, model, t)
+    agent.status = :C
     params = model.params
     age    = agent.age
-    if rand() <= p_V(params, age)
-        agent.status = :V
-        dur = dur_V(params, age)
-        schedule!(agent.id, t + dur, exit_V!, model)
-    else
-        agent.status = :R
+    dur    = dur_C(params, age)
+    if rand() <= p_V(params, age)  # Person will progress from ICU to ventilation
+        schedule!(agent.id, t + dur, to_V!, model)
+    else  # Person will progress from ICU to Recovered
+        schedule!(agent.id, t + dur, to_R!, model)
     end
 end
 
-function exit_V!(agent::Person, model, t)
-    agent.status = rand() <= p_D(model.params, agent.age) ? :D : :R
+function to_V!(agent::Person, model, t)
+    agent.status = :V
+    params = model.params
+    age    = agent.age
+    dur    = dur_C(params, age)
+    if rand() <= p_D(params, age)  # Person will progress from ventilation to deceased
+        schedule!(agent.id, t + dur, to_D!, model)
+    else  # Person will progress from ventilation to Recovered
+        schedule!(agent.id, t + dur, to_R!, model)
+    end
 end
+
+to_R!(agent::Person, model, t) = agent.status = :R
+to_D!(agent::Person, model, t) = agent.status = :D
 
 ################################################################################
 # Functions called by event functions
 
-dur_E(params, age) = rand(Poisson(exp(params.b0_E + params.b1_E * age)))
-dur_H(params, age) = rand(Poisson(exp(params.b0_H + params.b1_H * age)))
-dur_I(params, age) = rand(Poisson(exp(params.b0_I + params.b1_I * age)))
-dur_C(params, age) = rand(Poisson(exp(params.b0_C + params.b1_C * age)))
-dur_V(params, age) = rand(Poisson(exp(params.b0_V + params.b1_V * age)))
+dur_E(params, age)  = rand(Poisson(exp(params.b0_E  + params.b1_E  * age)))
+dur_H(params, age)  = rand(Poisson(exp(params.b0_H  + params.b1_H  * age)))
+dur_I1(params, age) = rand(Poisson(exp(params.b0_I1 + params.b1_I1 * age)))
+dur_I2(params, age) = rand(Poisson(exp(params.b0_I2 + params.b1_I2 * age)))
+dur_C(params, age)  = rand(Poisson(exp(params.b0_C  + params.b1_C  * age)))
+dur_V(params, age)  = rand(Poisson(exp(params.b0_V  + params.b1_V  * age)))
 
-"Pr(Next state is H | Current state is I, age)."
+"Pr(Next state is H | Current state is I2, age)."
 function p_H(params, age)
     age <= 9  && return params.p_H_0to9
     age <= 19 && return params.p_H_10to19
@@ -206,21 +220,24 @@ function p_H(params, age)
     params.p_H_gte80
 end
 
-p_C(params, age) = 1.0 / (1.0 + exp(-(params.a0_C + params.a1_C * age)))  # Pr(Next state is C | Current state is H, age)
-p_V(params, age) = 1.0 / (1.0 + exp(-(params.a0_V + params.a1_V * age)))  # Pr(Next state is V | Current state is C, age)
-p_D(params, age) = 1.0 / (1.0 + exp(-(params.a0_D + params.a1_D * age)))  # Pr(Next state is D | Current state is V, age)
+p_I2(params, age) = 1.0 / (1.0 + exp(-(params.a0_I2 + params.a1_I2 * age)))  # Pr(Next state is I2 | Current state is I1, age)
+p_C(params, age)  = 1.0 / (1.0 + exp(-(params.a0_C  + params.a1_C  * age)))  # Pr(Next state is C  | Current state is H,  age)
+p_V(params, age)  = 1.0 / (1.0 + exp(-(params.a0_V  + params.a1_V  * age)))  # Pr(Next state is V  | Current state is C,  age)
+p_D(params, age)  = 1.0 / (1.0 + exp(-(params.a0_D  + params.a1_D  * age)))  # Pr(Next state is D  | Current state is V,  age)
 
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
 function infect_contacts!(agent::Person, model, t::Int)
-    agent.status != :I && return
+    agent.status != :I1 && agent.status != :I2 && return
     agents      = model.agents
     age         = agent.age
     params      = model.params
     pr_infect   = p_infect(params, age)
     n_susceptible_contacts = 0
     n_susceptible_contacts = infect_household_contacts!(households, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    #n_susceptible_contacts = infect_contacts!(:school,    active_scenario.school,    pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    if !isnothing(agent.school)
+        n_susceptible_contacts = infect_contactlist!(agent.school, active_scenario.school, pr_infect, agents, model, t, n_susceptible_contacts)
+    end
     if !isnothing(agent.ij_workplace)
         i, j = agent.ij_workplace
         n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), active_scenario.workplace,
@@ -246,25 +263,7 @@ function infect_household_contacts!(households, pr_contact, pr_infect, agent, ag
     end
     n_susceptible_contacts
 end
-#=
-function infect_contacts!(contact_category::Symbol, pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    contactlist = getproperty(agent, contact_category)
-    for id in contactlist
-        contact = agents[id]
-        if pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
-            if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
-                execute_event!(exit_S!, contact, model, t, metrics)
-            #elseif contact.status == :R && rand() <= contact.p_reinfection
-            #    execute_event!(exit_S!, contact, model, t, metrics)
-            end
-        end
-        if contact.status == :S
-            n_susceptible_contacts += 1
-        end
-    end
-    n_susceptible_contacts
-end
-=#
+
 function infect_community_contacts!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int,
                                     pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     i_agent == 0 && return n_susceptible_contacts
@@ -307,13 +306,20 @@ end
 function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible_contacts)
     if pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
         if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
-            execute_event!(exit_S!, contact, model, t, metrics)
+            execute_event!(to_E!, contact, model, t, metrics)
         #elseif contact.status == :R && rand() <= contact.p_reinfection
-        #    execute_event!(exit_S!, contact, model, t, metrics)
+        #    execute_event!(to_E!, contact, model, t, metrics)
         end
     end
     if contact.status == :S
         n_susceptible_contacts += 1
+    end
+    n_susceptible_contacts
+end
+
+function infect_contactlist!(contactlist::Vector{Int}, pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
+    for id in contactlist
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
     end
     n_susceptible_contacts
 end
