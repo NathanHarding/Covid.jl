@@ -48,6 +48,7 @@ end
 mutable struct Person <: AbstractAgent
     id::Int
     status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
+    tested::Bool
 
     # Risk factors
     age::Int
@@ -60,7 +61,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -103,6 +104,7 @@ function reset_model!(model)
     agents = model.agents
     params = model.params
     for agent in agents  # Reset each agent's state and schedule a state change
+        agent.tested = false
         status = status0[agent.id]
         if status == :E
             to_E!(agent, model, 0)
@@ -149,20 +151,25 @@ end
 function to_I2!(agent::Person, model, t)
     agent.status = :I2
     params = model.params
-    age    = agent.age
-    dur    = dur_I2(params, age)
+    if rand() <= params.p_test  # Testing in the community and/or Emergency department
+        agent.tested = true
+        metrics[:positives] += 1
+    end
+    age = agent.age
+    dur = dur_I2(params, age)
     if rand() <= p_H(params, age)  # Person will progress from I2 to H
         schedule!(agent.id, t + dur, to_H!, model)
     else  # Person will progress from I2 to Recovered
         schedule!(agent.id, t + dur, to_R!, model)
     end
-    if rand() <= params.p_test
-        metrics[:positives] += 1
-    end
 end
 
 function to_H!(agent::Person, model, t)
     agent.status = :H
+    if agent.tested == false  # Agent tests positive when admitted to hospital
+        agent.tested = true
+        metrics[:positives] += 1
+    end
     params = model.params
     age    = agent.age
     dur    = dur_H(params, age)
