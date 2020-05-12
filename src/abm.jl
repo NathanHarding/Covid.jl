@@ -25,7 +25,7 @@ include("contacts.jl")
 using .config
 using .contacts
 
-const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0)
+const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
 const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
 
 # Conveniences
@@ -155,6 +155,9 @@ function to_I2!(agent::Person, model, t)
         schedule!(agent.id, t + dur, to_H!, model)
     else  # Person will progress from I2 to Recovered
         schedule!(agent.id, t + dur, to_R!, model)
+    end
+    if rand() <= params.p_test
+        metrics[:positives] += 1
     end
 end
 
