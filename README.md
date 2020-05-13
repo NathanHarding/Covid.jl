@@ -57,7 +57,20 @@ According to the above, when `t=7`:
 
 ## Next
 
-- Read Simon's work, compare to the household code.
+- Testing regimes
+  - Hospital admissions only
+  - A proportion of symptomatic cases
+  - A proportion of asymptomatic people (S, E, I1)
+- __Contact tracing__ regimes
+  - None
+  - Test all contacts of a known case
+  - Test all contacts of a tested case
+- With probability p, p=0.5, 0.6, ..., 1.0, __isolate__ people who:
+   - Take a test
+   - Test positive
+   - Are a contact of a tested person
+   - Are a contact of a known case
+   - Are in the same school/workplace as a known case (i.e., even if not in direct contact)
 - Fix Pr(1 parent | children)
 - Allow for interstate and international arrivals.
 - Set initial values.
