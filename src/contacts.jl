@@ -14,9 +14,9 @@ function populate_contacts!(agents, params, indata,
                             communitycontacts::Vector{Int}, socialcontacts::Vector{Int})
     age2first = construct_age2firstindex!(agents)  # agents[age2first[i]] is the first agent with age i
     @info "$(now()) Populating households with children"
-    populate_households_with_children!(households, agents, age2first, params.pr_1_parent, indata["family_household_distribution"])
+    populate_households_with_children!(households, agents, age2first, indata["household_distribution"])
     @info "$(now()) Populating households without children"
-    populate_households_without_children!(households, agents, age2first, indata["nonfamily_household_distribution"])
+    populate_households_without_children!(households, agents, indata["household_distribution"])
     @info "$(now()) Populating schools"
     populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
                               params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
@@ -146,6 +146,9 @@ function push_child!(hh::Household, id)
     true  # Success
 end
 
+################################################################################
+# Households with children
+
 """
 - Input data: 
   - d_nparents: Pr(nadults == k | nchildren > 0) = [0.26, 0.74]
@@ -159,15 +162,14 @@ while n_unplaced_children > 0
        - adults at least 20 years older than oldest child
     set household contacts
 """
-function populate_households_with_children!(households, agents, age2first, pr_1_parent, family_household_distribution)
-    d_nresidents      = Categorical(family_household_distribution.proportion)
-    d_nparents        = Categorical([pr_1_parent, 1.0 - pr_1_parent])
+function populate_households_with_children!(households, agents, age2first, household_distribution)
+    family_household_distribution = construct_family_household_distribution(household_distribution)
     unplaced_children = Set(1:(age2first[18] - 1))
     unplaced_parents  = Set((age2first[20]):(age2first[55] - 1))  # Parents of children under 18 are adults aged between 20 and 54
     imax = length(unplaced_children)
     for i = 1:imax  # Cap the number of iterations by placing at least 1 child per iteration
         # Init household
-        hh  = draw_household_with_children(unplaced_parents, unplaced_children, family_household_distribution::DataFrame, d_nresidents, d_nparents)
+        hh  = draw_household_with_children(unplaced_parents, unplaced_children, family_household_distribution)
         np  = hh.max_nadults
         nc  = hh.max_nchildren
         idx = size(households, 1) + 1  # households[idx] = new household
@@ -207,6 +209,31 @@ function populate_households_with_children!(households, agents, age2first, pr_1_
     end
 end
 
+function construct_family_household_distribution(household_distribution::DataFrame)
+    result = DataFrame(nadults=Int[], nchildren=Int[], nhouseholds=Int[])
+    family_household_distribution = view(household_distribution, household_distribution.nchildren .> 0, :)
+    for subdata in groupby(family_household_distribution, [:nadults, :nchildren])
+        row = (nadults=subdata[1, :nadults], nchildren=subdata[1, :nchildren], nhouseholds=sum(subdata.nhouseholds))
+        push!(result, row)
+    end
+    result[!, :proportion] = result.nhouseholds ./ sum(result.nhouseholds)
+    result
+end
+
+function draw_household_with_children(unplaced_parents, unplaced_children, family_household_distribution::DataFrame)
+    n_unplaced_parents  = length(unplaced_parents)
+    n_unplaced_children = length(unplaced_children)
+    i         = rand(Categorical(family_household_distribution.proportion))
+    nparents  = family_household_distribution[i, :nadults]
+    nparents  = nparents > n_unplaced_parents ? n_unplaced_parents : nparents
+    nchildren = family_household_distribution[i, :nchildren]
+    nchildren = nchildren > n_unplaced_children ? n_unplaced_children : nchildren
+    Household(nparents, nchildren)
+end
+
+################################################################################
+# Households without children
+
 """
 - Input data:
   - d_nadults_without_children: Pr(nadults == k | nchildren == 0). E.g., Proportional to [0.24, 0.27, 0.02, 0.02, 0.01, 0.01].
@@ -217,13 +244,13 @@ while n_unplaced_adults > 0
         - No constraints at the moment
     set household contacts
 """
-function populate_households_without_children!(households::Vector{Household}, agents, age2first, nonfamily_household_distribution::DataFrame)
-    d_nadults = Categorical(nonfamily_household_distribution.proportion)
+function populate_households_without_children!(households::Vector{Household}, agents, household_distribution::DataFrame)
+    nonfamily_household_distribution = construct_nonfamily_household_distribution(household_distribution)
     unplaced_adults = Set([agent.id for agent in agents if agent.i_household == 0])
     imax = length(unplaced_adults)
     for i = 1:imax  # Cap the number of iterations by placing at least 1 child per iteration
         # Init household
-        hh  = draw_household_without_children(unplaced_adults, nonfamily_household_distribution, d_nadults)
+        hh  = draw_household_without_children(unplaced_adults, nonfamily_household_distribution)
         na  = hh.max_nadults
         idx = size(households, 1) + 1  # households[idx] = new household
 
@@ -241,21 +268,20 @@ function populate_households_without_children!(households::Vector{Household}, ag
     end
 end
 
-function draw_household_with_children(unplaced_parents, unplaced_children, family_household_distribution::DataFrame, d_nresidents, d_nparents)
-    n_unplaced_parents  = length(unplaced_parents)
-    n_unplaced_children = length(unplaced_children)
-    i          = rand(d_nresidents)
-    nresidents = family_household_distribution[i, :nresidents]
-    nparents   = nresidents == 2 ? 1 : rand(d_nparents)
-    nparents   = nparents > n_unplaced_parents ? n_unplaced_parents : nparents
-    nchildren  = nresidents - nparents
-    nchildren  = nchildren > n_unplaced_children ? n_unplaced_children : nchildren
-    Household(nparents, nchildren)
+function construct_nonfamily_household_distribution(household_distribution::DataFrame)
+    result = DataFrame(nadults=Int[], nchildren=Int[], nhouseholds=Int[])
+    nonfamily_household_distribution = view(household_distribution, household_distribution.nchildren .== 0, :)
+    for subdata in groupby(nonfamily_household_distribution, [:nadults, :nchildren])
+        row = (nadults=subdata[1, :nadults], nchildren=subdata[1, :nchildren], nhouseholds=sum(subdata.nhouseholds))
+        push!(result, row)
+    end
+    result[!, :proportion] = result.nhouseholds ./ sum(result.nhouseholds)
+    result
 end
 
-function draw_household_without_children(unplaced_adults, nonfamily_household_distribution::DataFrame, d_nadults)
+function draw_household_without_children(unplaced_adults, nonfamily_household_distribution::DataFrame)
     n_unplaced_adults = length(unplaced_adults)
-    i       = rand(d_nadults)
+    i       = rand(Categorical(nonfamily_household_distribution.proportion))
     nadults = nonfamily_household_distribution[i, :nadults]
     nadults = nadults > n_unplaced_adults  ? n_unplaced_adults : nadults
     Household(nadults, 0)

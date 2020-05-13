@@ -1,13 +1,12 @@
 datadir: "C:\\projects\\data\\dhhs\\covid-abm"
 #datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
 input_data:
-    params:                           "params.tsv"
-    age_distribution:                 "population_by_age_VIC.tsv"
-    workplace_distribution:           "workplace_by_size_VIC.tsv"
-    primaryschool_distribution:       "avg_yearlevel_size_distribution_primary.tsv"
-    secondaryschool_distribution:     "avg_yearlevel_size_distribution_secondary.tsv"
-    family_household_distribution:    "family_households.tsv"
-    nonfamily_household_distribution: "nonfamily_households.tsv"
+    params:                       "params.tsv"
+    age_distribution:             "population_by_age_VIC.tsv"
+    workplace_distribution:       "workplace_by_size_VIC.tsv"
+    primaryschool_distribution:   "avg_yearlevel_size_distribution_primary.tsv"
+    secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
+    household_distribution:       "households.tsv"
 maxtime: 180
 nruns_per_scenario: 3
 initial_status_counts: {E: 1}

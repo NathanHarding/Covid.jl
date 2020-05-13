@@ -71,7 +71,6 @@ According to the above, when `t=7`:
    - Are a contact of a tested person
    - Are a contact of a known case
    - Are in the same school/workplace as a known case (i.e., even if not in direct contact)
-- Fix Pr(1 parent | children)
 - Allow for interstate and international arrivals.
 - Set initial values.
 - Separate night and day, weekdays and weekends.
