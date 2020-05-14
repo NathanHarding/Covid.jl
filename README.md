@@ -18,17 +18,15 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 - I1: Infectious and asymptomatic (next state is I2 or R)
 - I2: Infectious and symptomatic (next state is H or R).
   Assume a proportion __alpha__ of I2 cases get tested.
-- Hospitalised: Admitted to a ward bed (next state is C or R)
-- ICU: Admitted to ICU but not on a ventilator (next state is V or R)
-- Ventilated: On a ventilator in ICU (next state is D or R)
+- Hospitalised: Admitted to a ward bed (next state is ICU or R)
+- ICU: Admitted to ICU but not on a ventilator (next state is V or H)
+- Ventilated: On a ventilator in ICU (next state is D or ICU)
 - Recovered (final state)
 - Deceased (final state)
 
 The _actual_ number of new cases is E.
 The _actual_ number of active cases is N - S - R - D.
 The _actual_ number of cumulative cases is N - S.
-The _observed_ number of new cases is alpha*new_I2_cases.
-The _observed_ number of active cases is alpha*I2 + H + ICU + V.
 
 ## Time
 
@@ -57,6 +55,8 @@ According to the above, when `t=7`:
 
 ## Next
 
+- Delay between symptoms and test
+- Delay between test and test result
 - Testing regimes
   - Hospital admissions only
   - A proportion of symptomatic cases
@@ -73,7 +73,7 @@ According to the above, when `t=7`:
    - Are in the same school/workplace as a known case (i.e., even if not in direct contact)
 - Allow for interstate and international arrivals.
 - Set initial values.
-- Separate night and day, weekdays and weekends.
+- Separate night and day, weekdays and weekends...period of 14 x 12-hour blocks.
 - Define social distancing scenarios.
 - Solve for parameters.
 - Parition population for specific hospitals

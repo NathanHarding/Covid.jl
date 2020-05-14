@@ -49,6 +49,8 @@ mutable struct Person <: AbstractAgent
     id::Int
     status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
     tested::Bool
+    has_been_to_icu::Bool
+    has_been_ventilated::Bool
 
     # Risk factors
     age::Int
@@ -61,7 +63,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -173,34 +175,40 @@ function to_H!(agent::Person, model, t)
     params = model.params
     age    = agent.age
     dur    = dur_H(params, age)
-    if rand() <= p_C(params, age)  # Person will progress from H to ICU
+    if agent.has_been_to_icu  # Person is improving after ICU - s/he will progress from the ward to recovery after 3 days
+        schedule!(agent.id, t + 3, to_R!, model)
+    elseif rand() <= p_C(params, age)  # Person is deteriorating - s/he will progress from H to ICU
         schedule!(agent.id, t + dur, to_C!, model)
-    else  # Person will progress from H to Recovered
+    else  # Person will progress from H to Recovered without goiing to ICU
         schedule!(agent.id, t + dur, to_R!, model)
     end
 end
 
 function to_C!(agent::Person, model, t)
     agent.status = :C
+    agent.has_been_to_icu = true
     params = model.params
     age    = agent.age
     dur    = dur_C(params, age)
-    if rand() <= p_V(params, age)  # Person will progress from ICU to ventilation
+    if agent.has_been_ventilated  # Person is improving after ventilation - s/he will progress from ICU to the ward after 3 days
+        schedule!(agent.id, t + 3, to_H!, model)
+    elseif rand() <= p_V(params, age)  # Person is deteriorating - s/he will progress from a non-ventilated ICU bed to a ventilated ICU bed
         schedule!(agent.id, t + dur, to_V!, model)
-    else  # Person will progress from ICU to Recovered
-        schedule!(agent.id, t + dur, to_R!, model)
+    else  # Person will progress from ICU to the ward without going to a ventilated ICU bed
+        schedule!(agent.id, t + dur, to_H!, model)
     end
 end
 
 function to_V!(agent::Person, model, t)
     agent.status = :V
+    agent.has_been_ventilated = true
     params = model.params
     age    = agent.age
     dur    = dur_C(params, age)
     if rand() <= p_D(params, age)  # Person will progress from ventilation to deceased
         schedule!(agent.id, t + dur, to_D!, model)
-    else  # Person will progress from ventilation to Recovered
-        schedule!(agent.id, t + dur, to_R!, model)
+    else  # Person will progress from ventilation to a non-ventilated ICU bed
+        schedule!(agent.id, t + dur, to_C!, model)
     end
 end
 
@@ -239,10 +247,9 @@ p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect *
 
 function infect_contacts!(agent::Person, model, t::Int)
     agent.status != :I1 && agent.status != :I2 && return
-    agents      = model.agents
-    age         = agent.age
-    params      = model.params
-    pr_infect   = p_infect(params, age)
+    agents    = model.agents
+    params    = model.params
+    pr_infect = p_infect(params, agent.age)
     n_susceptible_contacts = 0
     n_susceptible_contacts = infect_household_contacts!(households, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     if !isnothing(agent.school)
