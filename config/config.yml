@@ -17,11 +17,11 @@ distancing_regime:  # Pr(Contact a person in the contact list during any given d
     28: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # 25th Mar. Stage 2 restrictions + school closures.
 
 testing_regime:  # Pr(Test person | Status). People tested under this regime are NOT contacts of known cases.
-    0: {I2: 0.4, H: 1.0}
+    0: {IS: 0.4, W: 1.0}
 
 tracing_regime:  # Pr(Test a contact of a positive case). People tested under this regime ARE contacts of known cases.
     0: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0},
         community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
 
 quarantine_regime:
-    0: {known_contacts: {days: 14, compliance: 0.8}, tested: {days: 2, compliance: 0.8}, positive: {days: 10 days after entering I2, or 10 days after test date if I1, compliance: 0.8}}
+    0: {known_contacts: {days: 14, compliance: 0.8}, tested: {days: 2, compliance: 0.8}, positive: {days: 10 days after entering IS, or 10 days after test date if IA, compliance: 0.8}}

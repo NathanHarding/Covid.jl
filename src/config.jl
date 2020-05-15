@@ -30,21 +30,21 @@ DistancingRegime(d::Dict) = DistancingRegime(d["household"], d["school"], d["wor
 mutable struct TestingRegime
    S::Float64
    E::Float64
-   I1::Float64
-   I2::Float64
-   H::Float64
-   C::Float64
+   IA::Float64
+   IS::Float64
+   W::Float64
+   ICU::Float64
    V::Float64
 
-   function TestingRegime(S, E, I1, I2, H, C, V)
-       (S  < 0.0 || S  > 1.0) && error("Pr(Test Susceptible person) must be between 0 and 1")
-       (E  < 0.0 || E  > 1.0) && error("Pr(Test Exposed person) must be between 0 and 1")
-       (I1 < 0.0 || I1 > 1.0) && error("Pr(Test Asymptomatic case) must be between 0 and 1")
-       (I2 < 0.0 || I2 > 1.0) && error("Pr(Test Symptomatic case) must be between 0 and 1")
-       (H  < 0.0 || H  > 1.0) && error("Pr(Test Ward-bed case) must be between 0 and 1")
-       (C  < 0.0 || C  > 1.0) && error("Pr(Test ICU unventilated case) must be between 0 and 1")
-       (V  < 0.0 || V  > 1.0) && error("Pr(Test Ventilated case) must be between 0 and 1")
-       new(S, E, I1, I2, H, C, V)
+   function TestingRegime(S, E, IA, IS, W, ICU, V)
+       (S   < 0.0 || S   > 1.0) && error("Pr(Test Susceptible person) must be between 0 and 1")
+       (E   < 0.0 || E   > 1.0) && error("Pr(Test Exposed person) must be between 0 and 1")
+       (IA  < 0.0 || IA  > 1.0) && error("Pr(Test Asymptomatic case) must be between 0 and 1")
+       (IS  < 0.0 || IS  > 1.0) && error("Pr(Test Symptomatic case) must be between 0 and 1")
+       (W   < 0.0 || W   > 1.0) && error("Pr(Test Ward-bed case) must be between 0 and 1")
+       (ICU < 0.0 || ICU > 1.0) && error("Pr(Test ICU unventilated case) must be between 0 and 1")
+       (V   < 0.0 || V   > 1.0) && error("Pr(Test Ventilated case) must be between 0 and 1")
+       new(S, E, IA, IS, W, ICU, V)
    end
 end
 
@@ -73,18 +73,23 @@ struct Config
             filename = joinpath(datadir, "input", datafile)
             !isfile(filename) && error("Input data file does not exist: $(filename)")
         end
-        status0 = Dict(Symbol(k) => v for (k, v) in initial_status_counts)
+        registered_statuses = Set([:S, :E, :IA, :IS, :W, :ICU, :V, :R, :D])
+        for (status, n) in initial_status_counts
+            !in(status, registered_statuses) && error("Unknown status $(status)")
+            n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
+        end
         maxtime < 0 && error("maxtime is less than 0")
         nruns   < 1 && error("nruns is less than 1")
-        new(datadir, input_data, status0, maxtime, nruns, t2distancingregime, t2testingregime)
+        new(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime)
     end
 end
 
 function Config(configfile::String)
     d = YAML.load_file(configfile)
+    status0            = Dict(Symbol(k) => v for (k, v) in d["initial_status_counts"])
     t2distancingregime = Dict(t => DistancingRegime(regime) for (t, regime) in d["distancing_regime"])
     t2testingregime    = Dict(t => TestingRegime(regime)    for (t, regime) in d["testing_regime"])
-    Config(d["datadir"], d["input_data"], d["initial_status_counts"], d["maxtime"], d["nruns"], t2distancingregime, t2testingregime)
+    Config(d["datadir"], d["input_data"], status0, d["maxtime"], d["nruns"], t2distancingregime, t2testingregime)
 end
 
 end

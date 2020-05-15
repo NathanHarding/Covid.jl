@@ -13,16 +13,15 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 
 ## States
 
-- Susceptible: Not infected (next state is E)
-- Exposed: Infected but asymptomatic and not infectious (next state is I1)
-- I1: Infectious and asymptomatic (next state is I2 or R)
-- I2: Infectious and symptomatic (next state is H or R).
-  Assume a proportion __alpha__ of I2 cases get tested.
-- Hospitalised: Admitted to a ward bed (next state is ICU or R)
-- ICU: Admitted to ICU but not on a ventilator (next state is V or H)
-- Ventilated: On a ventilator in ICU (next state is D or ICU)
-- Recovered (final state)
-- Deceased (final state)
+- S:   Susceptible. Not infected (next state is E).
+- E:   Exposed. Infected but asymptomatic and not infectious (next state is I1).
+- IA:  Infectious and asymptomatic (next state is IS or R).
+- IS:  Infectious and symptomatic (next state is H or R).
+- W:   Admitted to a ward bed (next state is ICU or R).
+- ICU: Admitted to an unventilated ICU bed (next state is V or W).
+- V:   On a ventilator in ICU (next state is D or ICU).
+- R:   Recovered (final state).
+- D:   Deceased (final state).
 
 The _actual_ number of new cases is E.
 The _actual_ number of active cases is N - S - R - D.
@@ -58,7 +57,7 @@ According to the above, when `t=7`:
 - Testing regimes
   - Hospital admissions only
   - A proportion of symptomatic cases
-  - A proportion of asymptomatic people (S, E, I1)
+  - A proportion of asymptomatic people (S, E, IA)
 - __Contact tracing__ regimes
   - None
   - Test all contacts of a known case

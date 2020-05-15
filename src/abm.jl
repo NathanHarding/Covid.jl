@@ -40,7 +40,7 @@ end
 ################################################################################
 # Metrics
 
-const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
+const metrics = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
 
 function reset_metrics!(model)
     for (k, v) in metrics
@@ -139,14 +139,14 @@ function reset_model!(model)
             agent.status = :S
         elseif status == :E
             to_E!(agent, model, 0)
-        elseif status == :I1
-            to_I1!(agent, model, 0)
-        elseif status == :I2
-            to_I2!(agent, model, 0)
-        elseif status == :H
-            to_H!(agent, model, 0)
-        elseif status == :C
-            to_C!(agent, model, 0)
+        elseif status == :IA
+            to_IA!(agent, model, 0)
+        elseif status == :IS
+            to_IS!(agent, model, 0)
+        elseif status == :W
+            to_W!(agent, model, 0)
+        elseif status == :ICU
+            to_ICU!(agent, model, 0)
         elseif status == :V
             to_V!(agent, model, 0)
         elseif status == :R
@@ -174,63 +174,63 @@ end
 function to_E!(agent::Person, model, t)
     agent.status = :E
     dur = dur_E(model.params, agent.age)
-    schedule!(agent.id, t + dur, to_I1!, model)
+    schedule!(agent.id, t + dur, to_IA!, model)
 end
 
-function to_I1!(agent::Person, model, t)
-    agent.status = :I1
+function to_IA!(agent::Person, model, t)
+    agent.status = :IA
     params = model.params
     age    = agent.age
-    if rand() <= p_I2(params, age)  # Person will progress from I1 to I2
-        dur = dur_I1(params, age)
-        schedule!(agent.id, t + dur, to_I2!, model)
-    else  # Person will progress from I1 to Recovered
-        dur = dur_I1(params, age) + dur_I2(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation duration
+    if rand() <= p_IS(params, age)  # Person will progress from IA to IS
+        dur = dur_IA(params, age)
+        schedule!(agent.id, t + dur, to_IS!, model)
+    else  # Person will progress from IA to Recovered
+        dur = dur_IA(params, age) + dur_IS(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation duration
         schedule!(agent.id, t + dur, to_R!, model)
     end
     infect_contacts!(agent, model, t)  # Schedules an immediate status change for each contact
 end
 
-function to_I2!(agent::Person, model, t)
-    agent.status = :I2
-    rand() < active_testing_regime.I2 && schedule!(agent.id, t + 2, test_for_covid!, model)  # Test 2 days after onset of symptoms
+function to_IS!(agent::Person, model, t)
+    agent.status = :IS
+    rand() < active_testing_regime.IS && schedule!(agent.id, t + 2, test_for_covid!, model)  # Test 2 days after onset of symptoms
     params = model.params
     age = agent.age
-    dur = dur_I2(params, age)
-    if rand() <= p_H(params, age)  # Person will progress from I2 to H
-        schedule!(agent.id, t + dur, to_H!, model)
-    else  # Person will progress from I2 to Recovered
+    dur = dur_IS(params, age)
+    if rand() <= p_W(params, age)  # Person will progress from IS to W
+        schedule!(agent.id, t + dur, to_W!, model)
+    else  # Person will progress from IS to Recovered
         schedule!(agent.id, t + dur, to_R!, model)
     end
 end
 
-function to_H!(agent::Person, model, t)
-    agent.status = :H
-    rand() < active_testing_regime.H && schedule!(agent.id, t, test_for_covid!, model)  # Test immediately
+function to_W!(agent::Person, model, t)
+    agent.status = :W
+    rand() < active_testing_regime.W && schedule!(agent.id, t, test_for_covid!, model)  # Test immediately
     params = model.params
     age    = agent.age
-    dur    = dur_H(params, age)
+    dur    = dur_W(params, age)
     if agent.has_been_to_icu  # Person is improving after ICU - s/he will progress from the ward to recovery after 3 days
         schedule!(agent.id, t + 3, to_R!, model)
-    elseif rand() <= p_C(params, age)  # Person is deteriorating - s/he will progress from H to ICU
-        schedule!(agent.id, t + dur, to_C!, model)
-    else  # Person will progress from H to Recovered without goiing to ICU
+    elseif rand() <= p_ICU(params, age)  # Person is deteriorating - s/he will progress from the ward to ICU
+        schedule!(agent.id, t + dur, to_ICU!, model)
+    else  # Person will progress from the ward to Recovered without going to ICU
         schedule!(agent.id, t + dur, to_R!, model)
     end
 end
 
-function to_C!(agent::Person, model, t)
-    agent.status = :C
+function to_ICU!(agent::Person, model, t)
+    agent.status = :ICU
     agent.has_been_to_icu = true
     params = model.params
     age    = agent.age
-    dur    = dur_C(params, age)
+    dur    = dur_ICU(params, age)
     if agent.has_been_ventilated  # Person is improving after ventilation - s/he will progress from ICU to the ward after 3 days
-        schedule!(agent.id, t + 3, to_H!, model)
+        schedule!(agent.id, t + 3, to_W!, model)
     elseif rand() <= p_V(params, age)  # Person is deteriorating - s/he will progress from a non-ventilated ICU bed to a ventilated ICU bed
         schedule!(agent.id, t + dur, to_V!, model)
     else  # Person will progress from ICU to the ward without going to a ventilated ICU bed
-        schedule!(agent.id, t + dur, to_H!, model)
+        schedule!(agent.id, t + dur, to_W!, model)
     end
 end
 
@@ -239,11 +239,11 @@ function to_V!(agent::Person, model, t)
     agent.has_been_ventilated = true
     params = model.params
     age    = agent.age
-    dur    = dur_C(params, age)
+    dur    = dur_V(params, age)
     if rand() <= p_D(params, age)  # Person will progress from ventilation to deceased
         schedule!(agent.id, t + dur, to_D!, model)
     else  # Person will progress from ventilation to a non-ventilated ICU bed
-        schedule!(agent.id, t + dur, to_C!, model)
+        schedule!(agent.id, t + dur, to_ICU!, model)
     end
 end
 
@@ -253,30 +253,32 @@ to_D!(agent::Person, model, t) = agent.status = :D
 ################################################################################
 # Functions dependent on model parameters; called by event functions
 
-dur_E(params, age)  = rand(Poisson(exp(params.b0_E  + params.b1_E  * age)))
-dur_H(params, age)  = rand(Poisson(exp(params.b0_H  + params.b1_H  * age)))
-dur_I1(params, age) = rand(Poisson(exp(params.b0_I1 + params.b1_I1 * age)))
-dur_I2(params, age) = rand(Poisson(exp(params.b0_I2 + params.b1_I2 * age)))
-dur_C(params, age)  = rand(Poisson(exp(params.b0_C  + params.b1_C  * age)))
-dur_V(params, age)  = rand(Poisson(exp(params.b0_V  + params.b1_V  * age)))
+# Duration of each state
+dur_E(params,   age) = rand(Poisson(exp(params.b0_E   + params.b1_E   * age)))
+dur_IA(params,  age) = rand(Poisson(exp(params.b0_IA  + params.b1_IA  * age)))
+dur_IS(params,  age) = rand(Poisson(exp(params.b0_IS  + params.b1_IS  * age)))
+dur_W(params,   age) = rand(Poisson(exp(params.b0_W   + params.b1_W   * age)))
+dur_ICU(params, age) = rand(Poisson(exp(params.b0_ICU + params.b1_ICU * age)))
+dur_V(params,   age) = rand(Poisson(exp(params.b0_V   + params.b1_V   * age)))
 
-"Pr(Next state is H | Current state is I2, age)."
-function p_H(params, age)
-    age <= 9  && return params.p_H_0to9
-    age <= 19 && return params.p_H_10to19
-    age <= 29 && return params.p_H_20to29
-    age <= 39 && return params.p_H_30to39
-    age <= 49 && return params.p_H_40to49
-    age <= 59 && return params.p_H_50to59
-    age <= 69 && return params.p_H_60to69
-    age <= 79 && return params.p_H_70to79
-    params.p_H_gte80
+"Pr(Next state is W | Current state is IS, age)."
+function p_W(params, age)
+    age <= 9  && return params.p_W_0to9
+    age <= 19 && return params.p_W_10to19
+    age <= 29 && return params.p_W_20to29
+    age <= 39 && return params.p_W_30to39
+    age <= 49 && return params.p_W_40to49
+    age <= 59 && return params.p_W_50to59
+    age <= 69 && return params.p_W_60to69
+    age <= 79 && return params.p_W_70to79
+    params.p_W_gte80
 end
 
-p_I2(params, age) = 1.0 / (1.0 + exp(-(params.a0_I2 + params.a1_I2 * age)))  # Pr(Next state is I2 | Current state is I1, age)
-p_C(params, age)  = 1.0 / (1.0 + exp(-(params.a0_C  + params.a1_C  * age)))  # Pr(Next state is C  | Current state is H,  age)
-p_V(params, age)  = 1.0 / (1.0 + exp(-(params.a0_V  + params.a1_V  * age)))  # Pr(Next state is V  | Current state is C,  age)
-p_D(params, age)  = 1.0 / (1.0 + exp(-(params.a0_D  + params.a1_D  * age)))  # Pr(Next state is D  | Current state is V,  age)
+# Transition probabilities
+p_IS(params, age)  = 1.0 / (1.0 + exp(-(params.a0_IS  + params.a1_IS  * age)))  # Pr(Next state is IS  | Current state is IA,  age)
+p_ICU(params, age) = 1.0 / (1.0 + exp(-(params.a0_ICU + params.a1_ICU * age)))  # Pr(Next state is ICU | Current state is W,   age)
+p_V(params, age)   = 1.0 / (1.0 + exp(-(params.a0_V   + params.a1_V   * age)))  # Pr(Next state is V   | Current state is ICU, age)
+p_D(params, age)   = 1.0 / (1.0 + exp(-(params.a0_D   + params.a1_D   * age)))  # Pr(Next state is D   | Current state is V,   age)
 
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
@@ -284,7 +286,7 @@ p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect *
 # Infect contacts
 
 function infect_contacts!(agent::Person, model, t::Int)
-    agent.status != :I1 && agent.status != :I2 && return
+    agent.status != :IA && agent.status != :IS && return
     agents    = model.agents
     params    = model.params
     pr_infect = p_infect(params, agent.age)
