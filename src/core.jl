@@ -1,8 +1,9 @@
 module core
 
-export Model, AbstractAgent,  # types
+export Model, AbstractAgent,  # Types
        init_schedule, init_output, reset_output!,
-       schedule!, execute_event!, execute_events!, metrics_to_output!
+       schedule!, execute_event!, execute_events!, metrics_to_output!,
+       update_struct!  # Utils
 
 using DataFrames
 
@@ -41,9 +42,6 @@ function execute_events!(events, agents, model, t, metrics)
     end
 end
 
-unfit!(metrics, agents) = nothing  # To be extended by model-specific method
-fit!(metrics, agents)   = nothing  # To be extended by model-specific method
-
 function init_output(metrics, n)
     result = DataFrame(run=fill(0, n), time=[i for i = 0:(n-1)])
     for (colname, val0) in metrics
@@ -65,6 +63,20 @@ function metrics_to_output!(metrics, output, t)
     i = t + 1
     for (colname, val) in metrics
         output[i, colname] = val
+    end
+end
+
+# To be extended by model-specific methods
+unfit!(metrics, agents)  = nothing
+fit!(metrics, agents)    = nothing
+
+################################################################################
+# Utils
+
+function update_struct!(target, newvalue)
+    flds = fieldnames(typeof(newvalue))
+    for fld in flds
+        setfield!(target, fld, getfield(newvalue, fld))
     end
 end
 

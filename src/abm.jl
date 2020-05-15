@@ -8,7 +8,8 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module
+export Config, metrics, update_policies!, init_model, reset_model!, reset_metrics!,  # API required from any model module
+       init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module as is
 
 using DataFrames
 using Distributions
@@ -25,9 +26,42 @@ include("contacts.jl")
 using .config
 using .contacts
 
+################################################################################
+# Policies
+
 const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
+const active_testing_regime    = TestingRegime(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+function update_policies!(cfg::Config, t::Int)
+    haskey(cfg.t2distancingregime, t) && update_struct!(active_distancing_regime, cfg.t2distancingregime[t])
+    haskey(cfg.t2testingregime, t)    && update_struct!(active_testing_regime,    cfg.t2testingregime[t])
+end
+
+################################################################################
+# Metrics
+
 const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
 
+function reset_metrics!(model)
+    for (k, v) in metrics
+        metrics[k] = 0
+    end
+    for agent in model.agents
+        metrics[agent.status] += 1
+    end
+end
+
+"Remove the agent's old state from metrics"
+function unfit!(metrics::Dict{Symbol, Int}, agent)
+    metrics[agent.status] -= 1
+end
+
+"Add the agent's new state to metrics"
+function fit!(metrics::Dict{Symbol, Int}, agent)
+    metrics[agent.status] += 1
+end
+
+################################################################################
 # Conveniences
 const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
 const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
@@ -36,14 +70,7 @@ const communitycontacts = Int[]   # Contains person IDs. Social contacts can be 
 const socialcontacts    = Int[]
 
 ################################################################################
-
-function update_active_distancing_regime!(distancing_regime::DistancingRegime)
-    active_distancing_regime.household = distancing_regime.household
-    active_distancing_regime.school    = distancing_regime.school
-    active_distancing_regime.workplace = distancing_regime.workplace
-    active_distancing_regime.community = distancing_regime.community
-    active_distancing_regime.social    = distancing_regime.social
-end
+# The model
 
 mutable struct Person <: AbstractAgent
     id::Int
@@ -131,14 +158,17 @@ function reset_model!(model)
 end
 
 ################################################################################
+# Events
 
 function test_for_covid!(agent::Person, model, t)
     agent.tested = true
-    metrics[:positives] += 1
     schedule!(agent.id, t + 2, get_test_result!, model)  # Test result available 2 days after test
 end
 
 function get_test_result!(agent::Person, model, t)
+    status = agent.status
+    (status == :S || status == :R || status == :D) && return  # Test result is negative
+    metrics[:positives] += 1  # All other statuses are positive cases
 end
 
 function to_E!(agent::Person, model, t)
@@ -163,8 +193,8 @@ end
 
 function to_I2!(agent::Person, model, t)
     agent.status = :I2
-    params  = model.params
-    rand() <= params.p_test && schedule!(agent.id, t + 2, test_for_covid!, model)  # Testing in the community and/or Emergency department
+    rand() < active_testing_regime.I2 && schedule!(agent.id, t + 2, test_for_covid!, model)  # Test 2 days after onset of symptoms
+    params = model.params
     age = agent.age
     dur = dur_I2(params, age)
     if rand() <= p_H(params, age)  # Person will progress from I2 to H
@@ -176,7 +206,7 @@ end
 
 function to_H!(agent::Person, model, t)
     agent.status = :H
-    agent.tested == false && test_for_covid!(agent, model, t)  # Agent tests positive when admitted to hospital
+    rand() < active_testing_regime.H && schedule!(agent.id, t, test_for_covid!, model)  # Test immediately
     params = model.params
     age    = agent.age
     dur    = dur_H(params, age)
@@ -221,7 +251,7 @@ to_R!(agent::Person, model, t) = agent.status = :R
 to_D!(agent::Person, model, t) = agent.status = :D
 
 ################################################################################
-# Functions called by event functions
+# Functions dependent on model parameters; called by event functions
 
 dur_E(params, age)  = rand(Poisson(exp(params.b0_E  + params.b1_E  * age)))
 dur_H(params, age)  = rand(Poisson(exp(params.b0_H  + params.b1_H  * age)))
@@ -249,6 +279,9 @@ p_V(params, age)  = 1.0 / (1.0 + exp(-(params.a0_V  + params.a1_V  * age)))  # P
 p_D(params, age)  = 1.0 / (1.0 + exp(-(params.a0_D  + params.a1_D  * age)))  # Pr(Next state is D  | Current state is V,  age)
 
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
+
+################################################################################
+# Infect contacts
 
 function infect_contacts!(agent::Person, model, t::Int)
     agent.status != :I1 && agent.status != :I2 && return
@@ -344,28 +377,6 @@ function infect_contactlist!(contactlist::Vector{Int}, pr_contact, pr_infect, ag
         n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
     end
     n_susceptible_contacts
-end
-
-################################################################################
-# Metrics
-
-function reset_metrics!(model)
-    for (k, v) in metrics
-        metrics[k] = 0
-    end
-    for agent in model.agents
-        metrics[agent.status] += 1
-    end
-end
-
-"Remove the agent's old state from metrics"
-function unfit!(metrics, agent::Person)
-    metrics[agent.status] -= 1
-end
-
-"Add the agent's new state to metrics"
-function fit!(metrics, agent::Person)
-    metrics[agent.status] += 1
 end
 
 end
