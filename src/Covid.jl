@@ -23,26 +23,23 @@ function main(configfile::String)
 
     @info "$(now()) Initialising output data"
     metrics = abm.metrics
-    output  = init_output(metrics, maxtime + 1)
+    output  = init_output(metrics, maxtime + 1)  # +1 for t = 0
+    outfile = joinpath(cfg.datadir, "output", "metrics.csv")
 
-    # Run scenarios
-    for (scenarioname, t2scenario) in cfg.scenarios
-        @info "$(now()) Running $(scenarioname) scenario"
-        outfile = joinpath(cfg.datadir, "output", "$(scenarioname).csv")
-        for r in 1:cfg.nruns_per_scenario
-            @info "$(now())    Starting run $(r)"
-            abm.reset_model!(model)
-            abm.reset_metrics!(model)
-            reset_output!(output, r)
-            for t = 0:(maxtime - 1)
-                model.time = t
-                metrics_to_output!(metrics, output, t)    # System as at t
-                haskey(t2scenario, t) && abm.update_active_scenario!(t2scenario[t])
-                execute_events!(model.schedule[t], agents, model, t, metrics)
-            end
-            metrics_to_output!(metrics, output, maxtime)  # System as at maxtime
-            CSV.write(outfile, output; delim=',', append=r>1)
+    # Run model
+    for r in 1:cfg.nruns
+        @info "$(now())    Starting run $(r)"
+        abm.reset_model!(model)
+        abm.reset_metrics!(model)
+        reset_output!(output, r)
+        for t = 0:(maxtime - 1)
+            model.time = t
+            metrics_to_output!(metrics, output, t)    # System as at t
+            haskey(cfg.t2distancingregime, t) && abm.update_active_distancing_regime!(cfg.t2distancingregime[t])
+            execute_events!(model.schedule[t], agents, model, t, metrics)
         end
+        metrics_to_output!(metrics, output, maxtime)  # System as at maxtime
+        CSV.write(outfile, output; delim=',', append=r>1)
     end
     @info "$(now()) Finished"
 end

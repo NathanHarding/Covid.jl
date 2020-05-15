@@ -55,8 +55,6 @@ According to the above, when `t=7`:
 
 ## Next
 
-- Delay between symptoms and test
-- Delay between test and test result
 - Testing regimes
   - Hospital admissions only
   - A proportion of symptomatic cases

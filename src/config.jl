@@ -1,17 +1,18 @@
 module config
 
-export Config, Scenario
+export Config, DistancingRegime
 
 using YAML
 
-mutable struct Scenario
+"Updated over time"
+mutable struct DistancingRegime
     household::Float64
     school::Float64
     workplace::Float64
     community::Float64
     social::Float64
 
-    function Scenario(household, school, workplace, community, social)
+    function DistancingRegime(household, school, workplace, community, social)
         (household < 0.0 || household > 1.0) && error("Pr(Contact within household) must be between 0 and 1")
         (school    < 0.0 || school    > 1.0) && error("Pr(Contact within school) must be between 0 and 1")
         (workplace < 0.0 || workplace > 1.0) && error("Pr(Contact within work place) must be between 0 and 1")
@@ -21,17 +22,17 @@ mutable struct Scenario
     end
 end
 
-Scenario(d::Dict) = Scenario(d["household"], d["school"], d["workplace"], d["community"], d["social"])
+DistancingRegime(d::Dict) = DistancingRegime(d["household"], d["school"], d["workplace"], d["community"], d["social"])
 
 struct Config
     datadir::String
     input_data::Dict{String, String}  # tablename => datafile
     initial_status_counts::Dict{Symbol, Int}  # status => count(status)
     maxtime::Int
-    nruns_per_scenario::Int
-    scenarios::Dict{String, Dict{Int, Scenario}}  # scenario_name => t => scenario
+    nruns::Int
+    t2distancingregime::Dict{Int, DistancingRegime}  # t => distancing regime
 
-    function Config(datadir, input_data, initial_status_counts, maxtime, nruns_per_scenario, scenarios)
+    function Config(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime)
         !isdir(datadir) && error("The data directory does not exist: $(datadir)")
         for (tablename, datafile) in input_data
             filename = joinpath(datadir, "input", datafile)
@@ -39,21 +40,15 @@ struct Config
         end
         status0 = Dict(Symbol(k) => v for (k, v) in initial_status_counts)
         maxtime < 0 && error("maxtime is less than 0")
-        nruns_per_scenario < 1 && error("nruns_per_scenario is less than 1")
-        new(datadir, input_data, status0, maxtime, nruns_per_scenario, scenarios)
+        nruns   < 1 && error("nruns is less than 1")
+        new(datadir, input_data, status0, maxtime, nruns, t2distancingregime)
     end
 end
 
 function Config(configfile::String)
     d = YAML.load_file(configfile)
-    scenarios = Dict{String, Dict{Int, Scenario}}()
-    for (nm, t2scenario) in d["scenarios"]
-        scenarios[nm] = Dict{Int, Scenario}()
-        for (t, scenario) in t2scenario
-            scenarios[nm][t] = Scenario(scenario)
-        end
-    end
-    Config(d["datadir"], d["input_data"], d["initial_status_counts"], d["maxtime"], d["nruns_per_scenario"], scenarios)
+    t2distancingregime = Dict(t => DistancingRegime(regime) for (t, regime) in d["distancing_regime"])
+    Config(d["datadir"], d["input_data"], d["initial_status_counts"], d["maxtime"], d["nruns"], t2distancingregime)
 end
 
 end

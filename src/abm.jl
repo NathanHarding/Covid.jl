@@ -26,7 +26,7 @@ using .config
 using .contacts
 
 const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
-const active_scenario = Scenario(0.0, 0.0, 0.0, 0.0, 0.0)
+const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
 
 # Conveniences
 const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
@@ -37,12 +37,12 @@ const socialcontacts    = Int[]
 
 ################################################################################
 
-function update_active_scenario!(scenario::Scenario)
-    active_scenario.household = scenario.household
-    active_scenario.school    = scenario.school
-    active_scenario.workplace = scenario.workplace
-    active_scenario.community = scenario.community
-    active_scenario.social    = scenario.social
+function update_active_distancing_regime!(distancing_regime::DistancingRegime)
+    active_distancing_regime.household = distancing_regime.household
+    active_distancing_regime.school    = distancing_regime.school
+    active_distancing_regime.workplace = distancing_regime.workplace
+    active_distancing_regime.community = distancing_regime.community
+    active_distancing_regime.social    = distancing_regime.social
 end
 
 mutable struct Person <: AbstractAgent
@@ -130,6 +130,15 @@ end
 
 ################################################################################
 
+function test_for_covid!(agent::Person, model, t)
+    agent.tested = true
+    metrics[:positives] += 1
+    schedule!(agent.id, t + 2, get_test_result!, model)  # Test result available 2 days after test
+end
+
+function get_test_result!(agent::Person, model, t)
+end
+
 function to_E!(agent::Person, model, t)
     agent.status = :E
     dur = dur_E(model.params, agent.age)
@@ -152,11 +161,8 @@ end
 
 function to_I2!(agent::Person, model, t)
     agent.status = :I2
-    params = model.params
-    if rand() <= params.p_test  # Testing in the community and/or Emergency department
-        agent.tested = true
-        metrics[:positives] += 1
-    end
+    params  = model.params
+    rand() <= params.p_test && schedule!(agent.id, t + 2, test_for_covid!, model)  # Testing in the community and/or Emergency department
     age = agent.age
     dur = dur_I2(params, age)
     if rand() <= p_H(params, age)  # Person will progress from I2 to H
@@ -168,10 +174,7 @@ end
 
 function to_H!(agent::Person, model, t)
     agent.status = :H
-    if agent.tested == false  # Agent tests positive when admitted to hospital
-        agent.tested = true
-        metrics[:positives] += 1
-    end
+    agent.tested == false && test_for_covid!(agent, model, t)  # Agent tests positive when admitted to hospital
     params = model.params
     age    = agent.age
     dur    = dur_H(params, age)
@@ -251,18 +254,18 @@ function infect_contacts!(agent::Person, model, t::Int)
     params    = model.params
     pr_infect = p_infect(params, agent.age)
     n_susceptible_contacts = 0
-    n_susceptible_contacts = infect_household_contacts!(households, active_scenario.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_household_contacts!(households, active_distancing_regime.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
     if !isnothing(agent.school)
-        n_susceptible_contacts = infect_contactlist!(agent.school, active_scenario.school, pr_infect, agents, model, t, n_susceptible_contacts)
+        n_susceptible_contacts = infect_contactlist!(agent.school, active_distancing_regime.school, pr_infect, agents, model, t, n_susceptible_contacts)
     end
     if !isnothing(agent.ij_workplace)
         i, j = agent.ij_workplace
-        n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), active_scenario.workplace,
+        n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), active_distancing_regime.workplace,
                                                             pr_infect, agent, agents, model, t, n_susceptible_contacts)
     end
-    n_susceptible_contacts = infect_community_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), active_scenario.community,
+    n_susceptible_contacts = infect_community_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), active_distancing_regime.community,
                                                         pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_community_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), active_scenario.social, 
+    n_susceptible_contacts = infect_community_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), active_distancing_regime.social, 
                                                         pr_infect, agent, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end

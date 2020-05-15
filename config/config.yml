@@ -8,16 +8,19 @@ input_data:
     secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
     household_distribution:       "households.tsv"
 maxtime: 180
-nruns_per_scenario: 3
+nruns: 3
 initial_status_counts: {E: 1}
-scenarios:
-#    social_only:
-#        0:  {household: 1.0, school: 1.0, workplace: 1.0, community: 1.0, social: 1.0}  # 26th Feb. Normal.
-#        26: {household: 1.0, school: 1.0, workplace: 0.9, community: 0.5, social: 0.5}  # 23rd Mar. Business restrictions.
-#        28: {household: 1.0, school: 0.0, workplace: 0.9, community: 0.1, social: 0.1}  # 25th Mar. Stage 2 restrictions + school closures.
-#        33: {household: 1.0, school: 0.0, workplace: 0.1, community: 0.1, social: 0.1}  # 30th Mar. Stage 3 restrictions. WFH.
-    social_only:
-        0:  {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # 26th Feb. Normal.
-        18: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # 15th Mar. Business restrictions.
-        28: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # 25th Mar. Stage 2 restrictions + school closures.
-#        #33: {household: 1.0, school: 0.0, workplace: 0.1, community: 0.1, social: 0.1}  # 30th Mar. Stage 3 restrictions. WFH.
+
+distancing_regime:  # Pr(Contact a person in the contact list during any given day)
+    0:  {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # 26th Feb. Normal.
+    18: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # 15th Mar. Business restrictions.
+    28: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # 25th Mar. Stage 2 restrictions + school closures.
+
+testing_regime:
+    0: {I2: 0.4, H: 1.0}  # Pr(Test person | Status)
+
+tracing_regime: 
+    0: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Pr(Test contact in contacts list | Person tests positive)
+
+quarantine_regime:
+    0: {tested: {days: 2, compliance: 0.8}, positive: {days: 14, compliance: 0.8}}
