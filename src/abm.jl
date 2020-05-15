@@ -168,6 +168,7 @@ end
 function get_test_result!(agent::Person, model, t)
     status = agent.status
     (status == :S || status == :R || status == :D) && return  # Test result is negative
+    # Execute tracing here
     metrics[:positives] += 1  # All other statuses are positive cases
 end
 
