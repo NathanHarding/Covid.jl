@@ -25,8 +25,8 @@ include("contacts.jl")
 using .config
 using .contacts
 
-const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
 const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
+const metrics = Dict(:S => 0, :E => 0, :I1 => 0, :I2 => 0, :H => 0, :C => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
 
 # Conveniences
 const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
@@ -88,7 +88,7 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
         jmax = 10 * npeople  # Ceiling on the number of iterations
         for j = 1:jmax
             id = rand(rg)
-            agents[id].status != :S && continue  # We've already reset this person's status
+            agents[id].status != :S && continue  # We've already reset this person's status from the default status S
             agents[id].status  = status
             status0[id] = status
             nsuccesses += 1
@@ -108,7 +108,9 @@ function reset_model!(model)
     for agent in agents  # Reset each agent's state and schedule a state change
         agent.tested = false
         status = status0[agent.id]
-        if status == :E
+        if status == :S
+            agent.status = :S
+        elseif status == :E
             to_E!(agent, model, 0)
         elseif status == :I1
             to_I1!(agent, model, 0)

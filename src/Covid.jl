@@ -15,16 +15,16 @@ function main(configfile::String)
     @info "$(now()) Importing input data"
     indata = import_data(cfg.datadir, cfg.input_data)
 
+    @info "$(now()) Initialising output data"
+    metrics = abm.metrics
+    output  = init_output(metrics, cfg.maxtime + 1)  # +1 for t = 0
+    outfile = joinpath(cfg.datadir, "output", "metrics.csv")
+
     @info "$(now()) Initialising model"
     params  = construct_params(indata["params"])
     model   = abm.init_model(indata, params, cfg)
     maxtime = model.maxtime
     agents  = model.agents
-
-    @info "$(now()) Initialising output data"
-    metrics = abm.metrics
-    output  = init_output(metrics, maxtime + 1)  # +1 for t = 0
-    outfile = joinpath(cfg.datadir, "output", "metrics.csv")
 
     # Run model
     for r in 1:cfg.nruns
