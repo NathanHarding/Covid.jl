@@ -19,18 +19,16 @@ distancing_regime:
     28: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # 25th Mar. Stage 2 restrictions + school closures.
 
 # The testing regime is the policy for testing people not known to be contacts of a known case.
+# Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
-# The numbers are Pr(Test the person | status)
 testing_regime:
     0: {IS: 0.9, W: 1.0}
 
-# The tracing regime is the policy for testing contacts of a known case.
-# The numbers are Pr(Test a contact of a positive case).
+# Pr(Test | Person is a contact of a known case, status)
 # Asymptomatic contacts are S, E, IA or R.
-# In the context of tracing all symptomatic cases are IS because W, ICU and V patients have already been tested upon admission to the ward.
+# Symptomatic cases are IS because W, ICU and V patients have already been tested upon admission to hospital.
 tracing_regime:
-    0: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0},
-        community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
+    0: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
 
 # The quarantine regime is the policy for isolating people.
 quarantine_regime:

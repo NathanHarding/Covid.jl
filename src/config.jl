@@ -26,7 +26,7 @@ end
 DistancingRegime(d::Dict) = DistancingRegime(d["household"], d["school"], d["workplace"], d["community"], d["social"])
 
 ################################################################################
-"Pr(Test person | Status). People tested under this regime are NOT contacts of known cases."
+"Pr(Test | Person is not a contact of a known case, status)"
 mutable struct TestingRegime
    S::Float64
    E::Float64
@@ -58,6 +58,43 @@ function TestingRegime(d::Dict)
 end
 
 ################################################################################
+"""
+Pr(Test | Person is a contact of a known case, status)
+
+We needn't consider hospitalised symptomatic cases because we assume they are all tested upon admission.
+Regarding status, we need only consider whether the person is symptomatic (status is IS) or asymptomatic (status is S, E, IA or R).
+"""
+mutable struct TracingRegime
+    household::NamedTuple{(:asymptomatic, :symptomatic), Tuple{Float64, Float64}}
+    school::NamedTuple{(:asymptomatic, :symptomatic), Tuple{Float64, Float64}}
+    workplace::NamedTuple{(:asymptomatic, :symptomatic), Tuple{Float64, Float64}}
+    community::NamedTuple{(:asymptomatic, :symptomatic), Tuple{Float64, Float64}}
+    social::NamedTuple{(:asymptomatic, :symptomatic), Tuple{Float64, Float64}}
+
+    function TracingRegime(household, school, workplace, community, social)
+        args = [household, school, workplace, community, social]
+        flds = (:asymptomatic, :symptomatic)
+        for arg in args
+            for fld in flds
+               p = getfield(arg, fld)
+               article = fld == :asymptomatic ? "an" : "a"
+               (p < 0.0 || p > 1.0) && error("Pr(Test | Person is $(article) $(fld) $(arg) contact) must be between 0 and 1")
+            end
+        end
+        new(household, school, workplace, community, social)
+    end
+end
+
+function TracingRegime(d::Dict)
+    household = (asymptomatic=d["household"]["symptomatic"], symptomatic=d["household"]["symptomatic"])
+    school    = (asymptomatic=d["school"]["symptomatic"],    symptomatic=d["school"]["symptomatic"])
+    workplace = (asymptomatic=d["workplace"]["symptomatic"], symptomatic=d["workplace"]["symptomatic"])
+    community = (asymptomatic=d["community"]["symptomatic"], symptomatic=d["community"]["symptomatic"])
+    social    = (asymptomatic=d["social"]["symptomatic"],    symptomatic=d["social"]["symptomatic"])
+    TracingRegime(household, school, workplace, community, social)    
+end
+
+################################################################################
 struct Config
     datadir::String
     input_data::Dict{String, String}  # tablename => datafile
@@ -66,8 +103,9 @@ struct Config
     nruns::Int
     t2distancingregime::Dict{Int, DistancingRegime}  # t => distancing regime
     t2testingregime::Dict{Int, TestingRegime}        # t => testing_regime
+    t2tracingregime::Dict{Int, TracingRegime}        # t => tracing_regime
 
-    function Config(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime)
+    function Config(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime)
         !isdir(datadir) && error("The data directory does not exist: $(datadir)")
         for (tablename, datafile) in input_data
             filename = joinpath(datadir, "input", datafile)
@@ -80,7 +118,7 @@ struct Config
         end
         maxtime < 0 && error("maxtime is less than 0")
         nruns   < 1 && error("nruns is less than 1")
-        new(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime)
+        new(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime)
     end
 end
 
@@ -89,7 +127,8 @@ function Config(configfile::String)
     status0            = Dict(Symbol(k) => v for (k, v) in d["initial_status_counts"])
     t2distancingregime = Dict(t => DistancingRegime(regime) for (t, regime) in d["distancing_regime"])
     t2testingregime    = Dict(t => TestingRegime(regime)    for (t, regime) in d["testing_regime"])
-    Config(d["datadir"], d["input_data"], status0, d["maxtime"], d["nruns"], t2distancingregime, t2testingregime)
+    t2tracingregime    = Dict(t => TracingRegime(regime)    for (t, regime) in d["tracing_regime"])
+    Config(d["datadir"], d["input_data"], status0, d["maxtime"], d["nruns"], t2distancingregime, t2testingregime, t2tracingregime)
 end
 
 end

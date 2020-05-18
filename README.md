@@ -14,7 +14,7 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 ## States
 
 - S:   Susceptible. Not infected (next state is E).
-- E:   Exposed. Infected but asymptomatic and not infectious (next state is I1).
+- E:   Exposed. Infected but asymptomatic and not infectious (next state is IA).
 - IA:  Infectious and asymptomatic (next state is IS or R).
 - IS:  Infectious and symptomatic (next state is H or R).
 - W:   Admitted to a ward bed (next state is ICU or R).
