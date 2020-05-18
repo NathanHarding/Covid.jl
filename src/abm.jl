@@ -31,16 +31,19 @@ using .contacts
 
 const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
 const active_testing_regime    = TestingRegime(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+const active_tracing_regime    = TracingRegime((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
 
 function update_policies!(cfg::Config, t::Int)
     haskey(cfg.t2distancingregime, t) && update_struct!(active_distancing_regime, cfg.t2distancingregime[t])
     haskey(cfg.t2testingregime, t)    && update_struct!(active_testing_regime,    cfg.t2testingregime[t])
+    haskey(cfg.t2tracingregime, t)    && update_struct!(active_tracing_regime,    cfg.t2tracingregime[t])
 end
 
 ################################################################################
 # Metrics
 
-const metrics = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0, :positives => 0)
+const metrics = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0,
+                     :positives => 0, :negatives => 0)
 
 function reset_metrics!(model)
     for (k, v) in metrics
@@ -66,8 +69,8 @@ end
 const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
 const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
 const workplaces = Vector{Int}[]  # workplaces[i][j] is the id of the jth worker in the ith workplace.
-const communitycontacts = Int[]   # Contains person IDs. Social contacts can be derived for each person.
-const socialcontacts    = Int[]
+const communitycontacts = Int[]   # Contains person IDs. Community contacts can be derived for each person.
+const socialcontacts    = Int[]   # Contains person IDs. Social contacts can be derived for each person.
 
 ################################################################################
 # The model
@@ -75,7 +78,6 @@ const socialcontacts    = Int[]
 mutable struct Person <: AbstractAgent
     id::Int
     status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
-    tested::Bool
     has_been_to_icu::Bool
     has_been_ventilated::Bool
 
@@ -90,7 +92,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -133,7 +135,6 @@ function reset_model!(model)
     agents = model.agents
     params = model.params
     for agent in agents  # Reset each agent's state and schedule a state change
-        agent.tested = false
         status = status0[agent.id]
         if status == :S
             agent.status = :S
@@ -161,15 +162,106 @@ end
 # Events
 
 function test_for_covid!(agent::Person, model, t)
-    agent.tested = true
+    agent.status == :D && return  # Do not test deceased people
     schedule!(agent.id, t + 2, get_test_result!, model)  # Test result available 2 days after test
 end
 
 function get_test_result!(agent::Person, model, t)
-    status = agent.status
-    (status == :S || status == :R || status == :D) && return  # Test result is negative
-    # Execute tracing here
-    metrics[:positives] += 1  # All other statuses are positive cases
+    if (agent.status == :S || agent.status == :R)
+        metrics[:negatives] += 1
+    else
+        metrics[:positives] += 1
+        trace_and_test_contacts!(agent, model, t)
+        # Apply isolation to agent here
+    end
+end
+
+function trace_and_test_contacts!(agent::Person, model, t)
+    regime = active_tracing_regime
+    params = model.params
+    trace_household_contacts!(agent, model, t, regime.household, 1)  # Last arg is the delay between t and the contact's test date
+    trace_school_contacts!(agent::Person, model, t, regime.school, 2)
+    if !isnothing(agent.ij_workplace)
+        i, j = agent.ij_workplace
+        trace_community_contacts!(agent, model, t, regime.workplace.asymptomatic, regime.workplace.symptomatic, 3,
+                                  workplaces[i], j, Int(params.n_workplace_contacts))
+    end
+    trace_community_contacts!(agent, model, t, regime.community.asymptomatic, regime.community.symptomatic, 3,
+                              communitycontacts, agent.i_community, Int(params.n_community_contacts))
+    trace_community_contacts!(agent, model, t, regime.social.asymptomatic, regime.social.symptomatic, 3,
+                              socialcontacts, agent.i_social, Int(params.n_social_contacts))
+end
+
+function trace_and_test_contact!(contact::Person, model, t, delay, p_asymptomatic, p_symptomatic)
+    status = contact.status
+    if status == :IS  # Symptomatic and not hospitalised
+        rand() <= p_symptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
+    elseif (status == :S || status == :E || status == :IA || status == :R)  # Asymptomatic
+        rand() <= p_asymptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
+    end
+end
+
+function trace_household_contacts!(agent::Person, model, t, probs, delay)
+    agents = model.agents
+    household = households[agent.i_household]
+    p_asymptomatic = probs.asymptomatic
+    p_symptomatic  = probs.symptomatic
+    flds = (:adults, :children)
+    for fld in flds
+        contactids = getfield(household, fld)
+        for contactid in contactids
+            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+        end
+    end
+end
+
+function trace_school_contacts!(agent::Person, model, t, probs, delay)
+    isnothing(agent.school) && return  # Agent has no school contacts
+    agents = model.agents
+    p_asymptomatic = probs.asymptomatic
+    p_symptomatic  = probs.symptomatic
+    contactids = agent.school
+    for contactid in contactids
+        trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+    end
+end
+
+function trace_community_contacts!(agent, model, t, p_asymptomatic, p_symptomatic, delay, community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int)
+    i_agent == 0 && return
+    agents  = model.agents
+    agentid = agent.id
+    npeople = length(community)
+    ncontacts_per_person = min(npeople - 1, ncontacts_per_person)
+    halfn   = div(ncontacts_per_person, 2)
+    i1 = rem(i_agent - halfn + npeople, npeople)
+    i1 = i1 == 0 ? npeople : i1
+    i2 = rem(i_agent + halfn, npeople)
+    i2 = i2 == 0 ? npeople : i2
+    if i1 < i2
+        for i = i1:i2
+            i == i_agent && continue
+            contactid = community[i]
+            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+        end
+    elseif i1 > i2
+        for i = i1:npeople
+            i == i_agent && continue
+            contactid = community[i]
+            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+        end
+        for i = 1:i2
+            i == i_agent && continue
+            contactid = community[i]
+            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+        end
+    end
+    if isodd(ncontacts_per_person)
+        i  = rem(i_agent + div(npeople, 2), npeople)
+        i  = i == 0 ? npeople : i
+        i == i_agent && return
+        contactid = community[i]
+        trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+    end
 end
 
 function to_E!(agent::Person, model, t)

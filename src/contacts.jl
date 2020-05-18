@@ -23,9 +23,9 @@ function populate_contacts!(agents, params, indata,
     @info "$(now()) Populating work places"
     populate_workplace_contacts!(workplaces, agents, params.n_workplace_contacts, indata["workplace_distribution"])
     @info "$(now()) Populating communities"
-    populate_community_contacts!(communitycontacts, agents, params.n_community_contacts)
+    populate_community_contacts!(communitycontacts, agents)
     @info "$(now()) Populating social networks"
-    populate_social_contacts!(socialcontacts, agents, params.n_social_contacts)
+    populate_social_contacts!(socialcontacts, agents)
 end
 
 ################################################################################
@@ -503,7 +503,7 @@ end
 ################################################################################
 # Community contacts
 
-function populate_community_contacts!(communitycontacts::Vector{Int}, agents, ncontacts)
+function populate_community_contacts!(communitycontacts::Vector{Int}, agents)
     npeople = length(agents)
     for i = 1:npeople
         push!(communitycontacts, agents[i].id)
@@ -518,7 +518,7 @@ end
 ################################################################################
 # Social contacts
 
-function populate_social_contacts!(socialcontacts::Vector{Int}, agents, ncontacts)
+function populate_social_contacts!(socialcontacts::Vector{Int}, agents)
     npeople = length(agents)
     for i = 1:npeople
         push!(socialcontacts, agents[i].id)

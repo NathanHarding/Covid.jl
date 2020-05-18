@@ -1,6 +1,6 @@
 module config
 
-export Config, DistancingRegime, TestingRegime
+export Config, DistancingRegime, TestingRegime, TracingRegime
 
 using YAML
 
