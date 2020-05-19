@@ -80,6 +80,8 @@ mutable struct Person <: AbstractAgent
     status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
     has_been_to_icu::Bool
     has_been_ventilated::Bool
+    last_test_time::Int
+    last_test_result::Char  # 'p' = positive, 'n' = negative
 
     # Risk factors
     age::Int
@@ -92,7 +94,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, -1, 'n', age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -135,6 +137,8 @@ function reset_model!(model)
     agents = model.agents
     params = model.params
     for agent in agents  # Reset each agent's state and schedule a state change
+        agent.last_test_time   = -1
+        agent.last_test_result = 'n'
         status = status0[agent.id]
         if status == :S
             agent.status = :S
@@ -162,15 +166,20 @@ end
 # Events
 
 function test_for_covid!(agent::Person, model, t)
-    agent.status == :D && return  # Do not test deceased people
+    agent.status == :D            && return  # Do not test deceased people
+    agent.last_test_result == 'p' && return  # Patient is already a known and active case
+    agent.last_test_time == t     && return  # Patient has already been tested at this time step
+    agent.last_test_time = t
     schedule!(agent.id, t + 2, get_test_result!, model)  # Test result available 2 days after test
 end
 
 function get_test_result!(agent::Person, model, t)
     if (agent.status == :S || agent.status == :R)
         metrics[:negatives] += 1
+        agent.last_test_result = 'n'
     else
         metrics[:positives] += 1
+        agent.last_test_result = 'p'
         trace_and_test_contacts!(agent, model, t)
         # Apply isolation to agent here
     end
@@ -202,10 +211,11 @@ function trace_and_test_contact!(contact::Person, model, t, delay, p_asymptomati
 end
 
 function trace_household_contacts!(agent::Person, model, t, probs, delay)
-    agents = model.agents
-    household = households[agent.i_household]
     p_asymptomatic = probs.asymptomatic
     p_symptomatic  = probs.symptomatic
+    p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
+    agents = model.agents
+    household = households[agent.i_household]
     flds = (:adults, :children)
     for fld in flds
         contactids = getfield(household, fld)
@@ -217,9 +227,10 @@ end
 
 function trace_school_contacts!(agent::Person, model, t, probs, delay)
     isnothing(agent.school) && return  # Agent has no school contacts
-    agents = model.agents
     p_asymptomatic = probs.asymptomatic
     p_symptomatic  = probs.symptomatic
+    p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
+    agents = model.agents
     contactids = agent.school
     for contactid in contactids
         trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
@@ -228,6 +239,7 @@ end
 
 function trace_community_contacts!(agent, model, t, p_asymptomatic, p_symptomatic, delay, community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int)
     i_agent == 0 && return
+    p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
     agents  = model.agents
     agentid = agent.id
     npeople = length(community)
@@ -340,7 +352,12 @@ function to_V!(agent::Person, model, t)
     end
 end
 
-to_R!(agent::Person, model, t) = agent.status = :R
+function to_R!(agent::Person, model, t)
+    agent.status = :R
+    agent.last_test_time   = -1
+    agent.last_test_result = 'n'
+end
+
 to_D!(agent::Person, model, t) = agent.status = :D
 
 ################################################################################
