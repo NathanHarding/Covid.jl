@@ -104,22 +104,19 @@ People known to be in recent contact with a known case are quarantined for X day
 mutable struct QuarantineRegime
     awaiting_test_result::NamedTuple{(:days, :compliance), Tuple{Int, Float64}}
     tested_positive::NamedTuple{(:days, :compliance), Tuple{Int, Float64}}
-    case_contacts::Dict{String, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}  # Keys are: household, school, workplace, community, social
+    case_contacts::Dict{Symbol, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}  # Keys are: household, school, workplace, community, social
 
     function QuarantineRegime(awaiting_test_result, tested_positive, case_contacts)
         check_quarantine_condition(awaiting_test_result)
         check_quarantine_condition(tested_positive)
-        registered_keys   = ["household", "school", "workplace", "community", "social"]
-        new_case_contacts = Dict{String, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}()
+        registered_keys   = [:household, :school, :workplace, :community, :social]
+        new_case_contacts = Dict{Symbol, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}()
         for k in registered_keys
-            if haskey(case_contacts, k)
-                v = case_contacts[k]
-                check_quarantine_condition(v)
-                new_case_contacts[k] = v
-                delete!(case_contacts, k)
-            else
-                new_case_contacts[k] = (days=0, compliance=0.0)
-            end
+            !haskey(case_contacts, k) && continue
+            v = case_contacts[k]
+            check_quarantine_condition(v)
+            new_case_contacts[k] = v
+            delete!(case_contacts, k)
         end
         !isempty(case_contacts) && error("case_contacts has invalid keys: $(sort!(collect(keys(case_contacts))))")
         new(awaiting_test_result, tested_positive, new_case_contacts)
@@ -129,7 +126,7 @@ end
 function QuarantineRegime(d::Dict)
     awaiting_test_result = construct_quarantine_condition(d["awaiting_test_result"])
     tested_positive      = construct_quarantine_condition(d["tested_positive"])
-    case_contacts        = Dict(k => construct_quarantine_condition(v) for (k, v) in d["case_contacts"])
+    case_contacts        = Dict(Symbol(k) => construct_quarantine_condition(v) for (k, v) in d["case_contacts"])
     QuarantineRegime(awaiting_test_result, tested_positive, case_contacts)
 end
 

@@ -32,7 +32,7 @@ using .contacts
 const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
 const active_testing_regime    = TestingRegime(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 const active_tracing_regime    = TracingRegime((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
-const active_quarantine_regime = QuarantineRegime((days=0,compliance=0.0), (days=0,compliance=0.0), Dict("household" => (days=0,compliance=0.0)))
+const active_quarantine_regime = QuarantineRegime((days=0,compliance=0.0), (days=0,compliance=0.0), Dict(:household => (days=0,compliance=0.0)))
 
 function update_policies!(cfg::Config, t::Int)
     haskey(cfg.t2distancingregime, t) && update_struct!(active_distancing_regime, cfg.t2distancingregime[t])
@@ -69,6 +69,7 @@ end
 ################################################################################
 # Conveniences
 const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
+const contactids = fill(0, 1000)  # Buffer for a mutable contact list
 const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
 const workplaces = Vector{Int}[]  # workplaces[i][j] is the id of the jth worker in the ith workplace.
 const communitycontacts = Int[]   # Contains person IDs. Community contacts can be derived for each person.
@@ -194,18 +195,19 @@ function get_test_result!(agent::Person, model, t)
 end
 
 function trace_and_test_contacts!(agent::Person, model, t)
-    regime = active_tracing_regime
-    params = model.params
+    regime  = active_tracing_regime
+    params  = model.params
+    agentid = agent.id
     trace_household_contacts!(agent, model, t, regime.household, 1)  # Last arg is the delay between t and the contact's test date
     trace_school_contacts!(agent::Person, model, t, regime.school, 2)
     if !isnothing(agent.ij_workplace)
         i, j = agent.ij_workplace
-        trace_community_contacts!(agent, model, t, regime.workplace.asymptomatic, regime.workplace.symptomatic, 3,
+        trace_community_contacts!(agentid, model, t, regime.workplace.asymptomatic, regime.workplace.symptomatic, 3,
                                   workplaces[i], j, Int(params.n_workplace_contacts))
     end
-    trace_community_contacts!(agent, model, t, regime.community.asymptomatic, regime.community.symptomatic, 3,
+    trace_community_contacts!(agentid, model, t, regime.community.asymptomatic, regime.community.symptomatic, 3,
                               communitycontacts, agent.i_community, Int(params.n_community_contacts))
-    trace_community_contacts!(agent, model, t, regime.social.asymptomatic, regime.social.symptomatic, 3,
+    trace_community_contacts!(agentid, model, t, regime.social.asymptomatic, regime.social.symptomatic, 3,
                               socialcontacts, agent.i_social, Int(params.n_social_contacts))
 end
 
@@ -245,47 +247,19 @@ function trace_school_contacts!(agent::Person, model, t, probs, delay)
     end
 end
 
-function trace_community_contacts!(agent::Person, model, t, p_asymptomatic, p_symptomatic, delay, community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int)
+function trace_community_contacts!(agentid::Int, model, t, p_asymptomatic, p_symptomatic, delay, community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int)
     i_agent == 0 && return
     p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
-    agents  = model.agents
-    agentid = agent.id
-    npeople = length(community)
-    ncontacts_per_person = min(npeople - 1, ncontacts_per_person)
-    halfn   = div(ncontacts_per_person, 2)
-    i1 = rem(i_agent - halfn + npeople, npeople)
-    i1 = i1 == 0 ? npeople : i1
-    i2 = rem(i_agent + halfn, npeople)
-    i2 = i2 == 0 ? npeople : i2
-    if i1 < i2
-        for i = i1:i2
-            i == i_agent && continue
-            contactid = community[i]
-            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
-        end
-    elseif i1 > i2
-        for i = i1:npeople
-            i == i_agent && continue
-            contactid = community[i]
-            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
-        end
-        for i = 1:i2
-            i == i_agent && continue
-            contactid = community[i]
-            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
-        end
-    end
-    if isodd(ncontacts_per_person)
-        i  = rem(i_agent + div(npeople, 2), npeople)
-        i  = i == 0 ? npeople : i
-        i == i_agent && return
-        contactid = community[i]
-        trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+    ncontacts = get_community_contactids!(community, i_agent, ncontacts_per_person, agentid)
+    ncontacts == 0 && return
+    for j = 1:ncontacts
+        trace_and_test_contact!(agents[contactids[j]], model, t, delay, p_asymptomatic, p_symptomatic)
     end
 end
 
 "Apply active_quarantine_regime to the agent (who just tested positive) and his/her contacts."
 function apply_quarantine_regime!(agent::Person, model, t)
+    # Quarantine the newly positive agent
     regime = active_quarantine_regime
     if rand() <= regime.tested_positive.compliance
         agent.quarantined = true
@@ -301,9 +275,25 @@ function apply_quarantine_regime!(agent::Person, model, t)
             schedule!(agent.id, t + regime.tested_positive.days - 2, exit_quarantine!, model)  # Days post test date
         end
     end
-    #=
-    case_contacts::Dict{String, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}  # Keys are: household, school, workplace, community, social
-    =#
+
+    # Quarantine the newly positive agent's contacts 
+    agents = model.agents
+    for (contact_network, quarantine_condition) in regime.case_contacts
+        p = quarantine_condition.compliance
+        p == 0.0 && continue
+        dur = quarantine_condition.days
+        dur == 0 && continue
+        contactids = getfield(agent, contact_network)
+        for contactid in contactids
+            contact = agents[contactid]
+            contact.quarantined && continue  # Contact is already quarantined
+            status = contact.status
+            if (status == :S || status == :E || status == :IA || status == :IS) && rand() <= p
+                contact.quarantined = true
+                schedule!(agent.id, t + dur, exit_quarantine!, model)
+            end
+        end
+    end
 end
 
 exit_quarantine!(agent::Person, model, t) = agent.quarantined = false
@@ -446,13 +436,13 @@ function infect_contacts!(agent::Person, model, t::Int)
     end
     if !isnothing(agent.ij_workplace)
         i, j = agent.ij_workplace
-        n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), active_distancing_regime.workplace,
-                                                            pr_infect, agent, agents, model, t, n_susceptible_contacts)
+        n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), agentid,
+                                                            active_distancing_regime.workplace, pr_infect, agents, model, t, n_susceptible_contacts)
     end
-    n_susceptible_contacts = infect_community_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), active_distancing_regime.community,
-                                                        pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_community_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), active_distancing_regime.social, 
-                                                        pr_infect, agent, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_community_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), agentid,
+                                                        active_distancing_regime.community, pr_infect, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_community_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), agentid,
+                                                        active_distancing_regime.social, pr_infect, agents, model, t, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
 end
 
@@ -470,43 +460,11 @@ function infect_household_contacts!(households, pr_contact, pr_infect, agent, ag
     n_susceptible_contacts
 end
 
-function infect_community_contacts!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int,
-                                    pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    i_agent == 0 && return n_susceptible_contacts
-    agentid = agent.id
-    npeople = length(community)
-    ncontacts_per_person = min(npeople - 1, ncontacts_per_person)
-    halfn   = div(ncontacts_per_person, 2)
-    i1 = rem(i_agent - halfn + npeople, npeople)
-    i1 = i1 == 0 ? npeople : i1
-    i2 = rem(i_agent + halfn, npeople)
-    i2 = i2 == 0 ? npeople : i2
-    if i1 < i2
-        for i = i1:i2
-            i == i_agent && continue
-            id = community[i]
-            n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
-        end
-    elseif i1 > i2
-        for i = i1:npeople
-            i == i_agent && continue
-            id = community[i]
-            n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
-        end
-        for i = 1:i2
-            i == i_agent && continue
-            id = community[i]
-            n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
-        end
-    end
-    if isodd(ncontacts_per_person)
-        i  = rem(i_agent + div(npeople, 2), npeople)
-        i  = i == 0 ? npeople : i
-        i == i_agent && return n_susceptible_contacts
-        id = community[i]
-        infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
-    end
-    n_susceptible_contacts
+function infect_community_contacts!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int, agentid::Int,
+                                    pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
+    ncontacts = get_community_contactids!(community, i_agent, ncontacts_per_person, agentid)
+    ncontacts == 0 && return n_susceptible_contacts
+    infect_contactlist!(view(contactids, 1:ncontacts), pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
 end
 
 function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible_contacts)
@@ -523,11 +481,58 @@ function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible
     n_susceptible_contacts
 end
 
-function infect_contactlist!(contactlist::Vector{Int}, pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
+function infect_contactlist!(contactlist, pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
     for id in contactlist
         n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
     end
     n_susceptible_contacts
+end
+
+################################################################################
+# Utils
+
+"""
+Modified: contactids.
+
+Populate contactids (global) with the agent's contact IDs and return the number of contacts j.
+I.e., contactids[1:j] is the required contact list.
+"""
+function get_community_contactids!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int, agentid::Int)
+    i_agent == 0 && return 0
+    j = 0  # Index of contactids
+    npeople = length(community)
+    ncontacts_per_person = min(npeople - 1, ncontacts_per_person)
+    halfn   = div(ncontacts_per_person, 2)
+    i1 = rem(i_agent - halfn + npeople, npeople)
+    i1 = i1 == 0 ? npeople : i1
+    i2 = rem(i_agent + halfn, npeople)
+    i2 = i2 == 0 ? npeople : i2
+    if i1 < i2
+        for i = i1:i2
+            i == i_agent && continue
+            j += 1
+            contactids[j] = community[i]
+        end
+    elseif i1 > i2
+        for i = i1:npeople
+            i == i_agent && continue
+            j += 1
+            contactids[j] = community[i]
+        end
+        for i = 1:i2
+            i == i_agent && continue
+            j += 1
+            contactids[j] = community[i]
+        end
+    end
+    if isodd(ncontacts_per_person)
+        i  = rem(i_agent + div(npeople, 2), npeople)
+        i  = i == 0 ? npeople : i
+        i == i_agent && return j
+        j += 1
+        contactids[j] = community[i]
+    end
+    j
 end
 
 end
