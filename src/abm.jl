@@ -32,11 +32,13 @@ using .contacts
 const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
 const active_testing_regime    = TestingRegime(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 const active_tracing_regime    = TracingRegime((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
+const active_quarantine_regime = QuarantineRegime((days=0,compliance=0.0), (days=0,compliance=0.0), Dict("household" => (days=0,compliance=0.0)))
 
 function update_policies!(cfg::Config, t::Int)
     haskey(cfg.t2distancingregime, t) && update_struct!(active_distancing_regime, cfg.t2distancingregime[t])
     haskey(cfg.t2testingregime, t)    && update_struct!(active_testing_regime,    cfg.t2testingregime[t])
     haskey(cfg.t2tracingregime, t)    && update_struct!(active_tracing_regime,    cfg.t2tracingregime[t])
+    haskey(cfg.t2quarantineregime, t) && update_struct!(active_quarantine_regime, cfg.t2quarantineregime[t])
 end
 
 ################################################################################
@@ -82,6 +84,7 @@ mutable struct Person <: AbstractAgent
     has_been_ventilated::Bool
     last_test_time::Int
     last_test_result::Char  # 'p' = positive, 'n' = negative
+    t_exit_quarantine::Int  # Defaults to -1 which means not in quarantine
 
     # Risk factors
     age::Int
@@ -94,7 +97,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, -1, 'n', age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, false, -1, 'n', -1, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -137,8 +140,9 @@ function reset_model!(model)
     agents = model.agents
     params = model.params
     for agent in agents  # Reset each agent's state and schedule a state change
-        agent.last_test_time   = -1
-        agent.last_test_result = 'n'
+        agent.last_test_time    = -1
+        agent.last_test_result  = 'n'
+        agent.t_exit_quarantine = -1
         status = status0[agent.id]
         if status == :S
             agent.status = :S
@@ -180,8 +184,8 @@ function get_test_result!(agent::Person, model, t)
     else
         metrics[:positives] += 1
         agent.last_test_result = 'p'
+        apply_quarantine_regime!(agent, model, t)
         trace_and_test_contacts!(agent, model, t)
-        # Apply isolation to agent here
     end
 end
 
@@ -274,6 +278,10 @@ function trace_community_contacts!(agent, model, t, p_asymptomatic, p_symptomati
         contactid = community[i]
         trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
     end
+end
+
+"Apply active_quarantine_regime to the agent (who just tested positive) and his/her contacts."
+function apply_quarantine_regime!(agent, model, t)
 end
 
 function to_E!(agent::Person, model, t)
