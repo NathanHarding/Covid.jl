@@ -1,6 +1,6 @@
 module config
 
-export Config, DistancingRegime, TestingRegime, TracingRegime
+export Config, DistancingRegime, TestingRegime, TracingRegime, QuarantineRegime
 
 using YAML
 
@@ -95,6 +95,52 @@ function TracingRegime(d::Dict)
 end
 
 ################################################################################
+"""
+The quarantine regime is the policy for isolating people.
+People who are awaiting test results are quarantined until the result is available, which is currently 2 days after the test date.
+People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
+People known to be in recent contact with a known case are quarantined for X days.
+"""
+mutable struct QuarantineRegime
+    awaiting_test_result::NamedTuple{(:days, :compliance), Tuple{Int, Float64}}
+    tested_positive::NamedTuple{(:days, :compliance), Tuple{Int, Float64}}
+    case_contacts::Dict{String, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}  # Keys are: household, school, workplace, community, social
+
+    function QuarantineRegime(awaiting_test_result, tested_positive, case_contacts)
+        check_quarantine_condition(awaiting_test_result)
+        check_quarantine_condition(tested_positive)
+        registered_keys   = ["household", "school", "workplace", "community", "social"]
+        new_case_contacts = Dict{String, NamedTuple{(:days, :compliance), Tuple{Int, Float64}}}()
+        for k in registered_keys
+            if haskey(case_contacts, k)
+                v = case_contacts[k]
+                check_quarantine_condition(v)
+                new_case_contacts[k] = v
+                delete!(case_contacts, k)
+            else
+                new_case_contacts[k] = (days=0, compliance=0.0)
+            end
+        end
+        !isempty(case_contacts) && error("case_contacts has invalid keys: $(sort!(collect(keys(case_contacts))))")
+        new(awaiting_test_result, tested_positive, new_case_contacts)
+    end
+end
+
+function QuarantineRegime(d::Dict)
+    awaiting_test_result = construct_quarantine_condition(d["awaiting_test_result"])
+    tested_positive      = construct_quarantine_condition(d["tested_positive"])
+    case_contacts        = Dict(k => construct_quarantine_condition(v) for (k, v) in d["case_contacts"])
+    QuarantineRegime(awaiting_test_result, tested_positive, case_contacts)
+end
+
+construct_quarantine_condition(d::Dict) = (days=d["days"], compliance=d["compliance"])
+
+function check_quarantine_condition(x::NamedTuple{(:days, :compliance), Tuple{Int, Float64}})
+    x.days < 0 && error("People cannot be quarantined for a negative number of days")
+    (x.compliance < 0.0 || x.compliance > 1.0) && error("Quarantine compliance must be between 0 and 1 inclusive.")    
+end
+
+################################################################################
 struct Config
     datadir::String
     input_data::Dict{String, String}  # tablename => datafile
@@ -104,8 +150,9 @@ struct Config
     t2distancingregime::Dict{Int, DistancingRegime}  # t => distancing regime
     t2testingregime::Dict{Int, TestingRegime}        # t => testing_regime
     t2tracingregime::Dict{Int, TracingRegime}        # t => tracing_regime
+    t2quarantineregime::Dict{Int, QuarantineRegime}  # t => quarantine_regime
 
-    function Config(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime)
+    function Config(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
         !isdir(datadir) && error("The data directory does not exist: $(datadir)")
         for (tablename, datafile) in input_data
             filename = joinpath(datadir, "input", datafile)
@@ -118,7 +165,7 @@ struct Config
         end
         maxtime < 0 && error("maxtime is less than 0")
         nruns   < 1 && error("nruns is less than 1")
-        new(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime)
+        new(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
     end
 end
 
@@ -128,7 +175,8 @@ function Config(configfile::String)
     t2distancingregime = Dict(t => DistancingRegime(regime) for (t, regime) in d["distancing_regime"])
     t2testingregime    = Dict(t => TestingRegime(regime)    for (t, regime) in d["testing_regime"])
     t2tracingregime    = Dict(t => TracingRegime(regime)    for (t, regime) in d["tracing_regime"])
-    Config(d["datadir"], d["input_data"], status0, d["maxtime"], d["nruns"], t2distancingregime, t2testingregime, t2tracingregime)
+    t2quarantineregime = Dict(t => QuarantineRegime(regime) for (t, regime) in d["quarantine_regime"])
+    Config(d["datadir"], d["input_data"], status0, d["maxtime"], d["nruns"], t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
 end
 
 end

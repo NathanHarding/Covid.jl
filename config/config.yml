@@ -12,7 +12,7 @@ nruns: 3
 initial_status_counts: {E: 1}
 
 # The distancing regime is the physical distancing policy.
-# The number are Pr(Contact a person in the contact list during any given day)
+# The numbers are Pr(Contact a person in the contact list during any given day)
 distancing_regime:
     0:  {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # 26th Feb. Normal.
     18: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # 15th Mar. Business restrictions.
@@ -31,5 +31,8 @@ tracing_regime:
     0: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
 
 # The quarantine regime is the policy for isolating people.
+# People who are awaiting test results are quarantined until the result is available, which is currently 2 days after the test date.
+# People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
+# People known to be in recent contact with a known case are quarantined for X days.
 quarantine_regime:
-    0: {known_contacts: {days: 14, compliance: 0.8}, tested: {days: 2, compliance: 0.8}, positive: {days: 10 days after entering IS, or 10 days after test date if IA, compliance: 0.8}}
+    0: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {workplace: {days: 14, compliance: 0.7}}}
