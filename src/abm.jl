@@ -195,9 +195,8 @@ function get_test_result!(agent::Person, model, t)
 end
 
 function apply_tracing_regime!(agent::Person, model, t)
-    regime  = active_tracing_regime
-    params  = model.params
-    agentid = agent.id
+    regime = active_tracing_regime
+    params = model.params
     contactlist = get_contactlist(agent, :household, params)
     trace_and_test_contacts!(contactlist, model, t, 1, regime.household.asymptomatic, regime.household.symptomatic)
     contactlist = get_contactlist(agent, :school, params)

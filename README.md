@@ -54,25 +54,9 @@ According to the above, when `t=7`:
 
 ## Next
 
-- Testing regimes
-  - Hospital admissions only
-  - A proportion of symptomatic cases
-  - A proportion of asymptomatic people (S, E, IA)
-- __Contact tracing__ regimes
-  - None
-  - Test all contacts of a known case
-  - Test all contacts of a tested case
-- With probability p, p=0.5, 0.6, ..., 1.0, __isolate__ people who:
-   - Take a test
-   - Test positive
-   - Are a contact of a tested person
-   - Are a contact of a known case
-   - Are in the same school/workplace as a known case (i.e., even if not in direct contact)
+- Calibrate parameters and initial values.
 - Allow for interstate and international arrivals.
-- Set initial values.
-- Separate night and day, weekdays and weekends...period of 14 x 12-hour blocks.
-- Define social distancing scenarios.
-- Solve for parameters.
+- Separate night and day, weekdays and weekends; each week is a list of fourteen 12-hour blocks.
 - Parition population for specific hospitals
     - Use SA4 for workplace distribution, assuming people can travel across their SA4 of residence to work
 - Add other risk factors such as diabetic status, hypertension, BMI, etc.
