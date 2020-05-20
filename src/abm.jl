@@ -170,7 +170,7 @@ function reset_model!(model)
 end
 
 ################################################################################
-# Events
+# Test-trace-quarantine events
 
 function test_for_covid!(agent::Person, model, t)
     agent.status == :D            && return  # Do not test deceased people
@@ -190,70 +190,38 @@ function get_test_result!(agent::Person, model, t)
         metrics[:positives] += 1
         agent.last_test_result = 'p'
         apply_quarantine_regime!(agent, model, t)
-        trace_and_test_contacts!(agent, model, t)
+        apply_tracing_regime!(agent, model, t)
     end
 end
 
-function trace_and_test_contacts!(agent::Person, model, t)
+function apply_tracing_regime!(agent::Person, model, t)
     regime  = active_tracing_regime
     params  = model.params
     agentid = agent.id
-    trace_household_contacts!(agent, model, t, regime.household, 1)  # Last arg is the delay between t and the contact's test date
-    trace_school_contacts!(agent::Person, model, t, regime.school, 2)
-    if !isnothing(agent.ij_workplace)
-        i, j = agent.ij_workplace
-        trace_community_contacts!(agentid, model, t, regime.workplace.asymptomatic, regime.workplace.symptomatic, 3,
-                                  workplaces[i], j, Int(params.n_workplace_contacts))
-    end
-    trace_community_contacts!(agentid, model, t, regime.community.asymptomatic, regime.community.symptomatic, 3,
-                              communitycontacts, agent.i_community, Int(params.n_community_contacts))
-    trace_community_contacts!(agentid, model, t, regime.social.asymptomatic, regime.social.symptomatic, 3,
-                              socialcontacts, agent.i_social, Int(params.n_social_contacts))
+    contactlist = get_contactlist(agent, :household, params)
+    trace_and_test_contacts!(contactlist, model, t, delay, regime.household.asymptomatic, regime.household.symptomatic)
+    contactlist = get_contactlist(agent, :school, params)
+    trace_and_test_contacts!(contactlist, model, t, delay, regime.school.asymptomatic,    regime.school.symptomatic)
+    contactlist = get_contactlist(agent, :workplace, params)
+    trace_and_test_contacts!(contactlist, model, t, delay, regime.workplace.asymptomatic, regime.workplace.symptomatic)
+    contactlist = get_contactlist(agent, :community, params)
+    trace_and_test_contacts!(contactlist, model, t, delay, regime.community.asymptomatic, regime.community.symptomatic)
+    contactlist = get_contactlist(agent, :social, params)
+    trace_and_test_contacts!(contactlist, model, t, delay, regime.social.asymptomatic, regime.social.symptomatic)
 end
 
-function trace_and_test_contact!(contact::Person, model, t, delay, p_asymptomatic, p_symptomatic)
-    status = contact.status
-    if status == :IS  # Symptomatic and not hospitalised
-        rand() <= p_symptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
-    elseif (status == :S || status == :E || status == :IA || status == :R)  # Asymptomatic
-        rand() <= p_asymptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
-    end
-end
-
-function trace_household_contacts!(agent::Person, model, t, probs, delay)
-    p_asymptomatic = probs.asymptomatic
-    p_symptomatic  = probs.symptomatic
+"Delay is the delay between t and the contact's test date"
+function trace_and_test_contacts!(contactlist, model, t, delay, p_asymptomatic, p_symptomatic)
     p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
     agents = model.agents
-    household = households[agent.i_household]
-    flds = (:adults, :children)
-    for fld in flds
-        contactids = getfield(household, fld)
-        for contactid in contactids
-            trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
+    for contactid in contactlist
+        contact = agents[contactid]
+        status  = contact.status
+        if status == :IS  # Symptomatic and not hospitalised
+            rand() <= p_symptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
+        elseif (status == :S || status == :E || status == :IA || status == :R)  # Asymptomatic
+            rand() <= p_asymptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
         end
-    end
-end
-
-function trace_school_contacts!(agent::Person, model, t, probs, delay)
-    isnothing(agent.school) && return  # Agent has no school contacts
-    p_asymptomatic = probs.asymptomatic
-    p_symptomatic  = probs.symptomatic
-    p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
-    agents = model.agents
-    contactids = agent.school
-    for contactid in contactids
-        trace_and_test_contact!(agents[contactid], model, t, delay, p_asymptomatic, p_symptomatic)
-    end
-end
-
-function trace_community_contacts!(agentid::Int, model, t, p_asymptomatic, p_symptomatic, delay, community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int)
-    i_agent == 0 && return
-    p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
-    ncontacts = get_community_contactids!(community, i_agent, ncontacts_per_person, agentid)
-    ncontacts == 0 && return
-    for j = 1:ncontacts
-        trace_and_test_contact!(agents[contactids[j]], model, t, delay, p_asymptomatic, p_symptomatic)
     end
 end
 
@@ -278,13 +246,14 @@ function apply_quarantine_regime!(agent::Person, model, t)
 
     # Quarantine the newly positive agent's contacts 
     agents = model.agents
+    params = model.params
     for (contact_network, quarantine_condition) in regime.case_contacts
         p = quarantine_condition.compliance
         p == 0.0 && continue
         dur = quarantine_condition.days
         dur == 0 && continue
-        contactids = getfield(agent, contact_network)
-        for contactid in contactids
+        contactlist = get_contactlist(agent, contact_network, params)
+        for contactid in contactlist
             contact = agents[contactid]
             contact.quarantined && continue  # Contact is already quarantined
             status = contact.status
@@ -297,6 +266,9 @@ function apply_quarantine_regime!(agent::Person, model, t)
 end
 
 exit_quarantine!(agent::Person, model, t) = agent.quarantined = false
+
+################################################################################
+# State transition events
 
 function to_E!(agent::Person, model, t)
     agent.status = :E
@@ -390,6 +362,50 @@ end
 to_D!(agent::Person, model, t) = agent.status = :D
 
 ################################################################################
+# Infect contacts event
+
+function infect_contacts!(agent::Person, model, t::Int)
+    agent.status != :IA && agent.status != :IS && return  # Person is either not infectious or isolated in hospital
+    agent.quarantined && return  # A quarantined person cannot infect anyone
+    agents    = model.agents
+    params    = model.params
+    pr_infect = p_infect(params, agent.age)
+    n_susceptible_contacts = 0
+    contactlist = get_contactlist(agent, :household, params)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.household, pr_infect, agents, model, t, n_susceptible_contacts)
+    contactlist = get_contactlist(agent, :school, params)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.school,    pr_infect, agents, model, t, n_susceptible_contacts)
+    contactlist = get_contactlist(agent, :workplace, params)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.workplace, pr_infect, agents, model, t, n_susceptible_contacts)
+    contactlist = get_contactlist(agent, :community, params)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.community, pr_infect, agents, model, t, n_susceptible_contacts)
+    contactlist = get_contactlist(agent, :social, params)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.social,    pr_infect, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
+end
+
+function infect_contactlist!(contactlist, pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
+    for id in contactlist
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+    end
+    n_susceptible_contacts
+end
+
+function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible_contacts)
+    if !(contact.quarantined) && pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
+        if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
+            execute_event!(to_E!, contact, model, t, metrics)
+        #elseif contact.status == :R && rand() <= contact.p_reinfection
+        #    execute_event!(to_E!, contact, model, t, metrics)
+        end
+    end
+    if contact.status == :S
+        n_susceptible_contacts += 1
+    end
+    n_susceptible_contacts
+end
+
+################################################################################
 # Functions dependent on model parameters; called by event functions
 
 # Duration of each state
@@ -422,74 +438,49 @@ p_D(params, age)   = 1.0 / (1.0 + exp(-(params.a0_D   + params.a1_D   * age)))  
 p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
 
 ################################################################################
-# Infect contacts
+# Utils
 
-function infect_contacts!(agent::Person, model, t::Int)
-    agent.status != :IA && agent.status != :IS && return
-    agents    = model.agents
-    params    = model.params
-    pr_infect = p_infect(params, agent.age)
-    n_susceptible_contacts = 0
-    n_susceptible_contacts = infect_household_contacts!(households, active_distancing_regime.household, pr_infect, agent, agents, model, t, n_susceptible_contacts)
-    if !isnothing(agent.school)
-        n_susceptible_contacts = infect_contactlist!(agent.school, active_distancing_regime.school, pr_infect, agents, model, t, n_susceptible_contacts)
-    end
-    if !isnothing(agent.ij_workplace)
-        i, j = agent.ij_workplace
-        n_susceptible_contacts = infect_community_contacts!(workplaces[i], j, Int(params.n_workplace_contacts), agentid,
-                                                            active_distancing_regime.workplace, pr_infect, agents, model, t, n_susceptible_contacts)
-    end
-    n_susceptible_contacts = infect_community_contacts!(communitycontacts, agent.i_community, Int(params.n_community_contacts), agentid,
-                                                        active_distancing_regime.community, pr_infect, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts = infect_community_contacts!(socialcontacts, agent.i_social, Int(params.n_social_contacts), agentid,
-                                                        active_distancing_regime.social, pr_infect, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
-end
-
-function infect_household_contacts!(households, pr_contact, pr_infect, agent, agents, model, t, n_susceptible_contacts)
+function get_contactlist(agent::Person, network::Symbol, params)
     agentid   = agent.id
-    household = households[agent.i_household]
-    for id in household.adults
-        id == agentid && continue
-        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+    ncontacts = 0
+    if network == :household
+        ncontacts = get_household_contactids!(households[agent.i_household], agentid)
+    elseif network == :school
+        ncontacts = isnothing(agent.school) ? 0 : get_school_contactids!(agent.school)
+    elseif network == :workplace
+        if !isnothing(agent.ij_workplace)
+            i, j = agent.ij_workplace
+            ncontacts = get_community_contactids!(workplaces[i], j, Int(params.n_workplace_contacts), agentid)
+        end
+    elseif network == :community
+        ncontacts = get_community_contactids!(communitycontacts, agent.i_community, Int(params.n_community_contacts), agentid)
+    elseif network == :social
+        ncontacts = get_community_contactids!(socialcontacts, agent.i_social, Int(params.n_social_contacts), agentid)
     end
-    for id in household.children
-        id == agentid && continue
-        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
-    end
-    n_susceptible_contacts
+    view(contactids, 1:ncontacts)
 end
 
-function infect_community_contacts!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int, agentid::Int,
-                                    pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
-    ncontacts = get_community_contactids!(community, i_agent, ncontacts_per_person, agentid)
-    ncontacts == 0 && return n_susceptible_contacts
-    infect_contactlist!(view(contactids, 1:ncontacts), pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
-end
-
-function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible_contacts)
-    if pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
-        if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
-            execute_event!(to_E!, contact, model, t, metrics)
-        #elseif contact.status == :R && rand() <= contact.p_reinfection
-        #    execute_event!(to_E!, contact, model, t, metrics)
+function get_household_contactids!(household, agentid)
+    j = 0
+    flds = (:adults, :children)
+    for fld in flds
+        contactlist = getfield(household, fld)
+        for id in contactlist
+            id == agentid && continue
+            j += 1
+            contactids[j] = id
         end
     end
-    if contact.status == :S
-        n_susceptible_contacts += 1
-    end
-    n_susceptible_contacts
+    j
 end
 
-function infect_contactlist!(contactlist, pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
-    for id in contactlist
-        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+function get_school_contactids!(contactlist::Vector{Int})
+    ncontacts = length(contactlist)
+    for j = 1:ncontacts
+        contactids[j] = contactlist[j]
     end
-    n_susceptible_contacts
+    ncontacts
 end
-
-################################################################################
-# Utils
 
 """
 Modified: contactids.
