@@ -4,7 +4,6 @@
 
 ```julia
 repodir = "C:\\projects\\repos\\Covid.jl"
-#repodir = "C:\\Users\\jlaw1812\\repos\\Covid.jl"
 using Pkg
 Pkg.activate(repodir)
 using Covid
@@ -26,6 +25,16 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 The _actual_ number of new cases is E.
 The _actual_ number of active cases is N - S - R - D.
 The _actual_ number of cumulative cases is N - S.
+
+## Contacts
+
+Each person has the following contacts:
+
+- Household: The people you live with.
+- Social:    Family and friends that you don't live with.
+- School:    People you see at school. Applicable only if you're 23 or under, or if your work place is a school.
+- Workplace: People you work with. Applicable if you don't attend school and don't work at a school.
+- Community: Strangers that you interact with when shopping, commuting, visiting the public library, cinema, etc.
 
 ## Time
 
@@ -54,9 +63,9 @@ According to the above, when `t=7`:
 
 ## Next
 
+- Documentation
 - Calibrate parameters and initial values.
 - Allow for interstate and international arrivals.
-- Separate night and day, weekdays and weekends; each week is a list of fourteen 12-hour blocks.
 - Parition population for specific hospitals
     - Use SA4 for workplace distribution, assuming people can travel across their SA4 of residence to work
 - Add other risk factors such as diabetic status, hypertension, BMI, etc.

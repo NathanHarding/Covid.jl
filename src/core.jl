@@ -6,44 +6,47 @@ export Model, AbstractAgent,  # Types
        update_struct!  # Utils
 
 using DataFrames
+using Dates
 
 abstract type AbstractAgent end
 
 mutable struct Model{A <: AbstractAgent, T <: NamedTuple}
     agents::Vector{A}
     params::T
-    time::Int
-    maxtime::Int
-    schedule::Dict{Int, Dict{Int, Tuple{Function, Int}}}  # t => i => event, where i denotes the order of events
+    date::Date
+    lastday::Date
+    schedule::Dict{Date, Dict{Int, Tuple{Function, Int}}}  # t => i => event, where i denotes the order of events
 end
 
-init_schedule(maxtime::Int) = Dict(t => Dict{Int, Tuple{Function, Int}}() for t = 0:(maxtime-1))
+init_schedule(firstday::Date, lastday::Date) = Dict(dt => Dict{Int, Tuple{Function, Int}}() for dt = firstday:Day(1):(lastday - Day(1)))
 
 "Schedule an event at time t for agent id"
-function schedule!(agentid::Int, t, event::Function, model)
-    t >= model.maxtime && return
-    s = model.schedule[t]
+function schedule!(agentid::Int, dt::Date, event::Function, model)
+    dt >= model.lastday && return
+    s = model.schedule[dt]
     n = length(s)
     s[n+1] = (event, agentid)
 end
 
-function execute_event!(func::Function, agent, model, t, metrics)
+function execute_event!(func::Function, agent, model, dt, metrics)
     unfit!(metrics, agent)  # Remove agent's old state from metrics
-    func(agent, model, t)
+    func(agent, model, dt)
     fit!(metrics, agent)    # Add agent's new state to metrics
 end
 
-function execute_events!(events, agents, model, t, metrics)
+function execute_events!(events, agents, model, dt, metrics)
     k = 1
     while haskey(events, k)
         func, id = events[k]
-        execute_event!(func, agents[id], model, t, metrics)
+        execute_event!(func, agents[id], model, dt, metrics)
         k += 1
     end
 end
 
-function init_output(metrics, n)
-    result = DataFrame(run=fill(0, n), time=[i for i = 0:(n-1)])
+function init_output(metrics, firstday::Date, lastday::Date)
+    rg = firstday:Day(1):lastday
+    n  = length(rg)
+    result = DataFrame(run=fill(0, n), date=[dt for dt in rg])
     for (colname, val0) in metrics
         result[!, colname] = Vector{typeof(val0)}(undef, n)
     end
@@ -54,13 +57,13 @@ function reset_output!(output::DataFrame, run_number::Int)
     fill!(output.run, run_number)
     for (colname, coldata) in eachcol(output, true)
         colname == :run  && continue
-        colname == :time && continue
+        colname == :date && continue
         fill!(coldata, zero(eltype(coldata)))
     end
 end
 
-function metrics_to_output!(metrics, output, t)
-    i = t + 1
+function metrics_to_output!(metrics, output, dt::Date)
+    i = findfirst(isequal(dt), output.date)
     for (colname, val) in metrics
         output[i, colname] = val
     end

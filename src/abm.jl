@@ -12,6 +12,7 @@ export Config, metrics, update_policies!, init_model, reset_model!, reset_metric
        init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module as is
 
 using DataFrames
+using Dates
 using Distributions
 
 include("core.jl")
@@ -34,11 +35,11 @@ const active_testing_regime    = TestingRegime(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 const active_tracing_regime    = TracingRegime((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
 const active_quarantine_regime = QuarantineRegime((days=0,compliance=0.0), (days=0,compliance=0.0), Dict(:household => (days=0,compliance=0.0)))
 
-function update_policies!(cfg::Config, t::Int)
-    haskey(cfg.t2distancingregime, t) && update_struct!(active_distancing_regime, cfg.t2distancingregime[t])
-    haskey(cfg.t2testingregime, t)    && update_struct!(active_testing_regime,    cfg.t2testingregime[t])
-    haskey(cfg.t2tracingregime, t)    && update_struct!(active_tracing_regime,    cfg.t2tracingregime[t])
-    haskey(cfg.t2quarantineregime, t) && update_struct!(active_quarantine_regime, cfg.t2quarantineregime[t])
+function update_policies!(cfg::Config, dt::Date)
+    haskey(cfg.t2distancingregime, dt) && update_struct!(active_distancing_regime, cfg.t2distancingregime[dt])
+    haskey(cfg.t2testingregime, dt)    && update_struct!(active_testing_regime,    cfg.t2testingregime[dt])
+    haskey(cfg.t2tracingregime, dt)    && update_struct!(active_tracing_regime,    cfg.t2tracingregime[dt])
+    haskey(cfg.t2quarantineregime, dt) && update_struct!(active_quarantine_regime, cfg.t2quarantineregime[dt])
 end
 
 ################################################################################
@@ -68,6 +69,9 @@ end
 
 ################################################################################
 # Conveniences
+
+dummydate() = Date(1900, 1, 1)
+
 const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
 const contactids = fill(0, 1000)  # Buffer for a mutable contact list
 const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
@@ -81,17 +85,17 @@ const socialcontacts    = Int[]   # Contains person IDs. Social contacts can be 
 mutable struct Person <: AbstractAgent
     id::Int
     status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
-    t_last_transition::Int  # Time of most recent status change
+    dt_last_transition::Date  # Date of most recent status change
     has_been_to_icu::Bool
     has_been_ventilated::Bool
-    last_test_time::Int
+    last_test_date::Date
     last_test_result::Char  # 'p' = positive, 'n' = negative
     quarantined::Bool
 
     # Risk factors
     age::Int
 
-    # Contacts
+    # Contact networks
     i_household::Int  # Person is in households[i_household].
     school::Union{Nothing, Vector{Int}}  # Child care, primary school, secondary school, university. Not empty for teachers and students.
     ij_workplace::Union{Nothing, Tuple{Int, Int}}  # Empty for children and teachers (whose workplace is school). person.id == workplaces[i][j].
@@ -99,15 +103,15 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, -1, false, false, -1, 'n', false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, dummydate(), false, false, dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
     agedist  = indata["age_distribution"]
     npeople  = round(Int, sum(agedist.count))
     agents   = Vector{Person}(undef, npeople)
-    schedule = init_schedule(cfg.maxtime)
-    model    = Model(agents, params, 0, cfg.maxtime, schedule)
+    schedule = init_schedule(cfg.firstday, cfg.lastday)
+    model    = Model(agents, params, cfg.firstday, cfg.lastday, schedule)
 
     # Construct people
     d_age = Categorical(agedist.proportion)
@@ -137,34 +141,36 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
     model
 end
 
-function reset_model!(model)
-    model.schedule = init_schedule(model.maxtime)  # Empty the schedule
+function reset_model!(model, cfg)
+    firstday       = cfg.firstday
+    model.schedule = init_schedule(cfg.firstday, cfg.lastday)  # Empty the schedule
+    model.date     = firstday
     agents = model.agents
     params = model.params
     for agent in agents  # Reset each agent's state and schedule a state change
-        agent.t_last_transition = -1
-        agent.last_test_time    = -1
+        agent.dt_last_transition = dummydate()
+        agent.last_test_date     = dummydate()
         agent.last_test_result  = 'n'
         agent.quarantined       = false
         status = status0[agent.id]
         if status == :S
             agent.status = :S
         elseif status == :E
-            to_E!(agent, model, 0)
+            to_E!(agent, model, firstday)
         elseif status == :IA
-            to_IA!(agent, model, 0)
+            to_IA!(agent, model, firstday)
         elseif status == :IS
-            to_IS!(agent, model, 0)
+            to_IS!(agent, model, firstday)
         elseif status == :W
-            to_W!(agent, model, 0)
+            to_W!(agent, model, firstday)
         elseif status == :ICU
-            to_ICU!(agent, model, 0)
+            to_ICU!(agent, model, firstday)
         elseif status == :V
-            to_V!(agent, model, 0)
+            to_V!(agent, model, firstday)
         elseif status == :R
-            to_R!(agent, model, 0)
+            to_R!(agent, model, firstday)
         elseif status == :D
-            to_D!(agent, model, 0)
+            to_D!(agent, model, firstday)
         end
     end
 end
@@ -172,16 +178,16 @@ end
 ################################################################################
 # Test-trace-quarantine events
 
-function test_for_covid!(agent::Person, model, t)
+function test_for_covid!(agent::Person, model, dt)
     agent.status == :D            && return  # Do not test deceased people
     agent.last_test_result == 'p' && return  # Patient is already a known and active case
-    agent.last_test_time == t     && return  # Patient has already been tested at this time step
-    agent.last_test_time = t
+    agent.last_test_date == dt    && return  # Patient has already been tested at this time step
+    agent.last_test_date = dt
     agent.quarantined = rand() <= active_quarantine_regime.awaiting_test_result.compliance
-    schedule!(agent.id, t + 2, get_test_result!, model)  # Test result available 2 days after test
+    schedule!(agent.id, dt + Day(2), get_test_result!, model)  # Test result available 2 days after test
 end
 
-function get_test_result!(agent::Person, model, t)
+function get_test_result!(agent::Person, model, dt)
     agent.quarantined = false
     if (agent.status == :S || agent.status == :R)
         metrics[:negatives] += 1
@@ -189,57 +195,57 @@ function get_test_result!(agent::Person, model, t)
     else
         metrics[:positives] += 1
         agent.last_test_result = 'p'
-        apply_quarantine_regime!(agent, model, t)
-        apply_tracing_regime!(agent, model, t)
+        apply_quarantine_regime!(agent, model, dt)
+        apply_tracing_regime!(agent, model, dt)
     end
 end
 
-function apply_tracing_regime!(agent::Person, model, t)
+function apply_tracing_regime!(agent::Person, model, dt)
     regime = active_tracing_regime
     params = model.params
     contactlist = get_contactlist(agent, :household, params)
-    trace_and_test_contacts!(contactlist, model, t, 1, regime.household.asymptomatic, regime.household.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 1, regime.household.asymptomatic, regime.household.symptomatic)
     contactlist = get_contactlist(agent, :school, params)
-    trace_and_test_contacts!(contactlist, model, t, 2, regime.school.asymptomatic,    regime.school.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 2, regime.school.asymptomatic,    regime.school.symptomatic)
     contactlist = get_contactlist(agent, :workplace, params)
-    trace_and_test_contacts!(contactlist, model, t, 3, regime.workplace.asymptomatic, regime.workplace.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 3, regime.workplace.asymptomatic, regime.workplace.symptomatic)
     contactlist = get_contactlist(agent, :community, params)
-    trace_and_test_contacts!(contactlist, model, t, 3, regime.community.asymptomatic, regime.community.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 3, regime.community.asymptomatic, regime.community.symptomatic)
     contactlist = get_contactlist(agent, :social, params)
-    trace_and_test_contacts!(contactlist, model, t, 3, regime.social.asymptomatic, regime.social.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 3, regime.social.asymptomatic, regime.social.symptomatic)
 end
 
 "Delay is the delay between t and the contact's test date"
-function trace_and_test_contacts!(contactlist, model, t, delay, p_asymptomatic, p_symptomatic)
+function trace_and_test_contacts!(contactlist, model, dt, delay, p_asymptomatic, p_symptomatic)
     p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
     agents = model.agents
     for contactid in contactlist
         contact = agents[contactid]
         status  = contact.status
         if status == :IS  # Symptomatic and not hospitalised
-            rand() <= p_symptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
+            rand() <= p_symptomatic && schedule!(contact.id, dt + Day(delay), test_for_covid!, model)
         elseif (status == :S || status == :E || status == :IA || status == :R)  # Asymptomatic
-            rand() <= p_asymptomatic && schedule!(contact.id, t + delay, test_for_covid!, model)
+            rand() <= p_asymptomatic && schedule!(contact.id, dt + Day(delay), test_for_covid!, model)
         end
     end
 end
 
 "Apply active_quarantine_regime to the agent (who just tested positive) and his/her contacts."
-function apply_quarantine_regime!(agent::Person, model, t)
+function apply_quarantine_regime!(agent::Person, model, dt)
     # Quarantine the newly positive agent
     regime = active_quarantine_regime
     if rand() <= regime.tested_positive.compliance
         agent.quarantined = true
         status = agent.status
         if status == :IS  # Symptomatic
-            t_exit_quarantine = agent.t_last_transition + regime.tested_positive.days  # Days post onset of symptoms
-            if t_exit_quarantine <= t
+            dt_exit_quarantine = agent.dt_last_transition + Day(regime.tested_positive.days)  # Days post onset of symptoms
+            if dt_exit_quarantine <= dt
                 agent.quarantined = false
             else
-                schedule!(agent.id, t_exit_quarantine, exit_quarantine!, model)
+                schedule!(agent.id, dt_exit_quarantine, exit_quarantine!, model)
             end
         elseif status == :S || status == :E || status == :IA  # Asymptomatic
-            schedule!(agent.id, t + regime.tested_positive.days - 2, exit_quarantine!, model)  # Days post test date
+            schedule!(agent.id, dt + Day(regime.tested_positive.days - 2), exit_quarantine!, model)  # Days post test date
         end
     end
 
@@ -258,112 +264,112 @@ function apply_quarantine_regime!(agent::Person, model, t)
             status = contact.status
             if (status == :S || status == :E || status == :IA || status == :IS) && rand() <= p
                 contact.quarantined = true
-                schedule!(agent.id, t + dur, exit_quarantine!, model)
+                schedule!(agent.id, dt + Day(dur), exit_quarantine!, model)
             end
         end
     end
 end
 
-exit_quarantine!(agent::Person, model, t) = agent.quarantined = false
+exit_quarantine!(agent::Person, model, dt) = agent.quarantined = false
 
 ################################################################################
 # State transition events
 
-function to_E!(agent::Person, model, t)
+function to_E!(agent::Person, model, dt)
     agent.status = :E
-    agent.t_last_transition = t
+    agent.dt_last_transition = dt
     dur = dur_E(model.params, agent.age)
-    schedule!(agent.id, t + dur, to_IA!, model)
+    schedule!(agent.id, dt + Day(dur), to_IA!, model)
 end
 
-function to_IA!(agent::Person, model, t)
+function to_IA!(agent::Person, model, dt)
     agent.status = :IA
-    agent.t_last_transition = t
+    agent.dt_last_transition = dt
     params = model.params
     age    = agent.age
     if rand() <= p_IS(params, age)  # Person will progress from IA to IS
         dur = dur_IA(params, age)
-        schedule!(agent.id, t + dur, to_IS!, model)
+        schedule!(agent.id, dt + Day(dur), to_IS!, model)
     else  # Person will progress from IA to Recovered
         dur = dur_IA(params, age) + dur_IS(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation duration
-        schedule!(agent.id, t + dur, to_R!, model)
+        schedule!(agent.id, dt + Day(dur), to_R!, model)
     end
-    infect_contacts!(agent, model, t)  # Schedules an immediate status change for each contact
+    infect_contacts!(agent, model, dt)  # Schedules an immediate status change for each contact
 end
 
-function to_IS!(agent::Person, model, t)
+function to_IS!(agent::Person, model, dt)
     agent.status = :IS
-    agent.t_last_transition = t
-    rand() < active_testing_regime.IS && schedule!(agent.id, t + 2, test_for_covid!, model)  # Test 2 days after onset of symptoms
+    agent.dt_last_transition = dt
+    rand() < active_testing_regime.IS && schedule!(agent.id, dt + Day(2), test_for_covid!, model)  # Test 2 days after onset of symptoms
     params = model.params
     age = agent.age
     dur = dur_IS(params, age)
     if rand() <= p_W(params, age)  # Person will progress from IS to W
-        schedule!(agent.id, t + dur, to_W!, model)
+        schedule!(agent.id, dt + Day(dur), to_W!, model)
     else  # Person will progress from IS to Recovered
-        schedule!(agent.id, t + dur, to_R!, model)
+        schedule!(agent.id, dt + Day(dur), to_R!, model)
     end
 end
 
-function to_W!(agent::Person, model, t)
+function to_W!(agent::Person, model, dt)
     agent.status = :W
-    agent.t_last_transition = t
-    rand() < active_testing_regime.W && schedule!(agent.id, t, test_for_covid!, model)  # Test immediately
+    agent.dt_last_transition = dt
+    rand() < active_testing_regime.W && schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
     params = model.params
     age    = agent.age
     dur    = dur_W(params, age)
     if agent.has_been_to_icu  # Person is improving after ICU - s/he will progress from the ward to recovery after 3 days
-        schedule!(agent.id, t + 3, to_R!, model)
+        schedule!(agent.id, dt + Day(3), to_R!, model)
     elseif rand() <= p_ICU(params, age)  # Person is deteriorating - s/he will progress from the ward to ICU
-        schedule!(agent.id, t + dur, to_ICU!, model)
+        schedule!(agent.id, dt + Day(dur), to_ICU!, model)
     else  # Person will progress from the ward to Recovered without going to ICU
-        schedule!(agent.id, t + dur, to_R!, model)
+        schedule!(agent.id, dt + Day(dur), to_R!, model)
     end
 end
 
-function to_ICU!(agent::Person, model, t)
+function to_ICU!(agent::Person, model, dt)
     agent.status = :ICU
-    agent.t_last_transition = t
+    agent.dt_last_transition = dt
     agent.has_been_to_icu = true
     params = model.params
     age    = agent.age
     dur    = dur_ICU(params, age)
     if agent.has_been_ventilated  # Person is improving after ventilation - s/he will progress from ICU to the ward after 3 days
-        schedule!(agent.id, t + 3, to_W!, model)
+        schedule!(agent.id, dt + Day(3), to_W!, model)
     elseif rand() <= p_V(params, age)  # Person is deteriorating - s/he will progress from a non-ventilated ICU bed to a ventilated ICU bed
-        schedule!(agent.id, t + dur, to_V!, model)
+        schedule!(agent.id, dt + Day(dur), to_V!, model)
     else  # Person will progress from ICU to the ward without going to a ventilated ICU bed
-        schedule!(agent.id, t + dur, to_W!, model)
+        schedule!(agent.id, dt + Day(dur), to_W!, model)
     end
 end
 
-function to_V!(agent::Person, model, t)
+function to_V!(agent::Person, model, dt)
     agent.status = :V
-    agent.t_last_transition = t
+    agent.dt_last_transition = dt
     agent.has_been_ventilated = true
     params = model.params
     age    = agent.age
     dur    = dur_V(params, age)
     if rand() <= p_D(params, age)  # Person will progress from ventilation to deceased
-        schedule!(agent.id, t + dur, to_D!, model)
+        schedule!(agent.id, dt + Day(dur), to_D!, model)
     else  # Person will progress from ventilation to a non-ventilated ICU bed
-        schedule!(agent.id, t + dur, to_ICU!, model)
+        schedule!(agent.id, dt + Day(dur), to_ICU!, model)
     end
 end
 
-function to_R!(agent::Person, model, t)
+function to_R!(agent::Person, model, dt)
     agent.status = :R
-    agent.t_last_transition = t
-    agent.last_test_time    = -1
+    agent.dt_last_transition = dt
+    agent.last_test_date    = dummydate()
     agent.last_test_result  = 'n'
 end
 
-to_D!(agent::Person, model, t) = agent.status = :D
+to_D!(agent::Person, model, dt) = agent.status = :D
 
 ################################################################################
 # Infect contacts event
 
-function infect_contacts!(agent::Person, model, t::Int)
+function infect_contacts!(agent::Person, model, dt)
     agent.status != :IA && agent.status != :IS && return  # Person is either not infectious or isolated in hospital
     agent.quarantined && return  # A quarantined person cannot infect anyone
     agents    = model.agents
@@ -371,31 +377,31 @@ function infect_contacts!(agent::Person, model, t::Int)
     pr_infect = p_infect(params, agent.age)
     n_susceptible_contacts = 0
     contactlist = get_contactlist(agent, :household, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.household, pr_infect, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.household, pr_infect, agents, model, dt, n_susceptible_contacts)
     contactlist = get_contactlist(agent, :school, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.school,    pr_infect, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
     contactlist = get_contactlist(agent, :workplace, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.workplace, pr_infect, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
     contactlist = get_contactlist(agent, :community, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.community, pr_infect, agents, model, t, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.community, pr_infect, agents, model, dt, n_susceptible_contacts)
     contactlist = get_contactlist(agent, :social, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.social,    pr_infect, agents, model, t, n_susceptible_contacts)
-    n_susceptible_contacts > 0 && schedule!(agent.id, t + 1, infect_contacts!, model)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.social,    pr_infect, agents, model, dt, n_susceptible_contacts)
+    n_susceptible_contacts > 0 && schedule!(agent.id, dt + Day(1), infect_contacts!, model)
 end
 
-function infect_contactlist!(contactlist, pr_contact, pr_infect, agents, model, t, n_susceptible_contacts)
+function infect_contactlist!(contactlist, pr_contact, pr_infect, agents, model, dt, n_susceptible_contacts)
     for id in contactlist
-        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, t, n_susceptible_contacts)
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, dt, n_susceptible_contacts)
     end
     n_susceptible_contacts
 end
 
-function infect_contact!(pr_contact, pr_infect, contact, model, t, n_susceptible_contacts)
+function infect_contact!(pr_contact, pr_infect, contact, model, dt, n_susceptible_contacts)
     if !(contact.quarantined) && pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
         if contact.status == :S && rand() <= pr_infect  # The agent infects the contact
-            execute_event!(to_E!, contact, model, t, metrics)
+            execute_event!(to_E!, contact, model, dt, metrics)
         #elseif contact.status == :R && rand() <= contact.p_reinfection
-        #    execute_event!(to_E!, contact, model, t, metrics)
+        #    execute_event!(to_E!, contact, model, dt, metrics)
         end
     end
     if contact.status == :S

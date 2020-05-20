@@ -2,6 +2,7 @@ module config
 
 export Config, DistancingRegime, TestingRegime, TracingRegime, QuarantineRegime
 
+using Dates
 using YAML
 
 ################################################################################
@@ -142,14 +143,15 @@ struct Config
     datadir::String
     input_data::Dict{String, String}  # tablename => datafile
     initial_status_counts::Dict{Symbol, Int}  # status => count(status)
-    maxtime::Int
+    firstday::Date  # Simulation starts at 12am
+    lastday::Date   # Simulation finishes at 12am
     nruns::Int
-    t2distancingregime::Dict{Int, DistancingRegime}  # t => distancing regime
-    t2testingregime::Dict{Int, TestingRegime}        # t => testing_regime
-    t2tracingregime::Dict{Int, TracingRegime}        # t => tracing_regime
-    t2quarantineregime::Dict{Int, QuarantineRegime}  # t => quarantine_regime
+    t2distancingregime::Dict{Date, DistancingRegime}  # t => distancing regime
+    t2testingregime::Dict{Date, TestingRegime}        # t => testing_regime
+    t2tracingregime::Dict{Date, TracingRegime}        # t => tracing_regime
+    t2quarantineregime::Dict{Date, QuarantineRegime}  # t => quarantine_regime
 
-    function Config(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
+    function Config(datadir, input_data, initial_status_counts, firstday, lastday, nruns, t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
         !isdir(datadir) && error("The data directory does not exist: $(datadir)")
         for (tablename, datafile) in input_data
             filename = joinpath(datadir, "input", datafile)
@@ -160,20 +162,22 @@ struct Config
             !in(status, registered_statuses) && error("Unknown status $(status)")
             n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
         end
-        maxtime < 0 && error("maxtime is less than 0")
-        nruns   < 1 && error("nruns is less than 1")
-        new(datadir, input_data, initial_status_counts, maxtime, nruns, t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
+        firstday > lastday && error("First day is after last day")
+        nruns < 1 && error("nruns is less than 1")
+        new(datadir, input_data, initial_status_counts, firstday, lastday, nruns, t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
     end
 end
 
 function Config(configfile::String)
     d = YAML.load_file(configfile)
     status0            = Dict(Symbol(k) => v for (k, v) in d["initial_status_counts"])
-    t2distancingregime = Dict(t => DistancingRegime(regime) for (t, regime) in d["distancing_regime"])
-    t2testingregime    = Dict(t => TestingRegime(regime)    for (t, regime) in d["testing_regime"])
-    t2tracingregime    = Dict(t => TracingRegime(regime)    for (t, regime) in d["tracing_regime"])
-    t2quarantineregime = Dict(t => QuarantineRegime(regime) for (t, regime) in d["quarantine_regime"])
-    Config(d["datadir"], d["input_data"], status0, d["maxtime"], d["nruns"], t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
+    firstday           = Date(d["firstday"])
+    lastday            = Date(d["lastday"])
+    t2distancingregime = Dict(Date(dt) => DistancingRegime(regime) for (dt, regime) in d["distancing_regime"])
+    t2testingregime    = Dict(Date(dt) => TestingRegime(regime)    for (dt, regime) in d["testing_regime"])
+    t2tracingregime    = Dict(Date(dt) => TracingRegime(regime)    for (dt, regime) in d["tracing_regime"])
+    t2quarantineregime = Dict(Date(dt) => QuarantineRegime(regime) for (dt, regime) in d["quarantine_regime"])
+    Config(d["datadir"], d["input_data"], status0, firstday, lastday, d["nruns"], t2distancingregime, t2testingregime, t2tracingregime, t2quarantineregime)
 end
 
 end
