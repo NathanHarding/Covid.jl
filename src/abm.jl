@@ -199,15 +199,15 @@ function apply_tracing_regime!(agent::Person, model, t)
     params  = model.params
     agentid = agent.id
     contactlist = get_contactlist(agent, :household, params)
-    trace_and_test_contacts!(contactlist, model, t, delay, regime.household.asymptomatic, regime.household.symptomatic)
+    trace_and_test_contacts!(contactlist, model, t, 1, regime.household.asymptomatic, regime.household.symptomatic)
     contactlist = get_contactlist(agent, :school, params)
-    trace_and_test_contacts!(contactlist, model, t, delay, regime.school.asymptomatic,    regime.school.symptomatic)
+    trace_and_test_contacts!(contactlist, model, t, 2, regime.school.asymptomatic,    regime.school.symptomatic)
     contactlist = get_contactlist(agent, :workplace, params)
-    trace_and_test_contacts!(contactlist, model, t, delay, regime.workplace.asymptomatic, regime.workplace.symptomatic)
+    trace_and_test_contacts!(contactlist, model, t, 3, regime.workplace.asymptomatic, regime.workplace.symptomatic)
     contactlist = get_contactlist(agent, :community, params)
-    trace_and_test_contacts!(contactlist, model, t, delay, regime.community.asymptomatic, regime.community.symptomatic)
+    trace_and_test_contacts!(contactlist, model, t, 3, regime.community.asymptomatic, regime.community.symptomatic)
     contactlist = get_contactlist(agent, :social, params)
-    trace_and_test_contacts!(contactlist, model, t, delay, regime.social.asymptomatic, regime.social.symptomatic)
+    trace_and_test_contacts!(contactlist, model, t, 3, regime.social.asymptomatic, regime.social.symptomatic)
 end
 
 "Delay is the delay between t and the contact's test date"
