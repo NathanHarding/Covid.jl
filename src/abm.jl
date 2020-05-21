@@ -45,7 +45,7 @@ end
 ################################################################################
 # Metrics
 
-const metrics = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0,
+const metrics = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :H => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0,
                      :positives => 0, :negatives => 0)
 
 function reset_metrics!(model)
@@ -85,6 +85,7 @@ const socialcontacts    = Int[]   # Contains person IDs. Social contacts can be 
 mutable struct Person <: AbstractAgent
     id::Int
     status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
+    infectious::Bool
     dt_last_transition::Date  # Date of most recent status change
     has_been_to_icu::Bool
     has_been_ventilated::Bool
@@ -103,7 +104,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, dummydate(), false, false, dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, dummydate(), false, false, dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
     # Init model
@@ -128,9 +129,11 @@ function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <:
         jmax = 10 * npeople  # Ceiling on the number of iterations
         for j = 1:jmax
             id = rand(rg)
-            agents[id].status != :S && continue  # We've already reset this person's status from the default status S
-            agents[id].status  = status
-            status0[id] = status
+            agent = agents[id]
+            agent.status != :S && continue  # We've already reset this person's status from the default status S
+            agent.status = status
+            status0[id]  = status
+            agent.infectious = status == :IA || status == :IS
             nsuccesses += 1
             nsuccesses == n && break
         end
@@ -160,7 +163,10 @@ function reset_model!(model, cfg)
         elseif status == :IA
             to_IA!(agent, model, firstday)
         elseif status == :IS
+            agent.infectious = true
             to_IS!(agent, model, firstday)
+        elseif status == :H
+            to_H!(agent, model, firstday)
         elseif status == :W
             to_W!(agent, model, firstday)
         elseif status == :ICU
@@ -278,37 +284,55 @@ exit_quarantine!(agent::Person, model, dt) = agent.quarantined = false
 function to_E!(agent::Person, model, dt)
     agent.status = :E
     agent.dt_last_transition = dt
-    dur = max(2, round(Int, dur_incubation(model.params) - 2.0))  # At least 2 days
-    schedule!(agent.id, dt + Day(dur), to_IA!, model)
+    params = model.params
+
+    # Determine non-infectious and infectious periods
+    incubation_period  = max(2, dur_incubation(params))  # Time from exposure to symptoms (if they occur); at least 2 days
+    days_to_infectious = max(1, incubation_period - 2)   # Time from exposure to infectious; at least 1 day; starts 1 or 2 days before incubation period ends
+    days_infectious    = max(incubation_period - days_to_infectious + 1, dur_infectious(params))  # Ensures patient is still infectious after incubation period
+    schedule!(agent.id, dt + Day(days_to_infectious), to_IA!, model)  # Person becomes IA before the incubation period ends
+    schedule!(agent.id, dt + Day(days_to_infectious) + Day(days_infectious), exit_infectious!, model)  # Exit infectiousness some time after incubation
+
+    # Determine status after incubation period
+    if rand() <= p_IS(params, agent.age)  # Person will progress from IA to IS
+        schedule!(agent.id, dt + Day(incubation_period), to_IS!, model)
+    end
 end
 
 function to_IA!(agent::Person, model, dt)
     agent.status = :IA
     agent.dt_last_transition = dt
-    params = model.params
-    age    = agent.age
-    if rand() <= p_IS(params, age)  # Person will progress from IA to IS
-        schedule!(agent.id, dt + Day(2), to_IS!, model)
-    else  # Person will progress from IA to Recovered
-        dur = 2 + dur_IS(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation symptomatic duration
-        schedule!(agent.id, dt + Day(dur), to_R!, model)
-    end
-    infect_contacts!(agent, model, dt)  # Schedules an immediate status change for each contact
+    agent.infectious = true
+    infect_contacts!(agent, model, dt)
 end
 
 function to_IS!(agent::Person, model, dt)
     agent.status = :IS
     agent.dt_last_transition = dt
+    if rand() < active_testing_regime.IS  # Test for Covid
+        dur_totest = max(2, dur_onset2test(model.params) - 2)  # Time between onset of symptoms and test...at least 2 days
+        schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
+    end
+end
+
+function exit_infectious!(agent::Person, model, dt)
+    agent.infectious = false
+    if agent.status == :IA
+        to_R!(agent, model, dt)  # Asymptomatic and no longer infectious is effectively recovered
+    else
+        to_H!(agent, model, dt)  # At home, symptomatic but not infectious
+    end
+end
+
+function to_H!(agent::Person, model, dt)
+    agent.status = :H
+    agent.dt_last_transition = dt
     params = model.params
     age    = agent.age
-    dur    = dur_IS(params, age)
-    if rand() < active_testing_regime.IS  # Test for Covid
-        dur_totest = max(2, round(Int, dur_onset2test(params)) - 2)  # Time between onset of symptoms and test...at least 2 days
-        dur_totest < dur && schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
-    end
-    if rand() <= p_W(params, age)  # Person will progress from IS to W
+    dur    = dur_H(params, age)
+    if rand() <= p_W(params, age)  # Person will progress from H to W
         schedule!(agent.id, dt + Day(dur), to_W!, model)
-    else  # Person will progress from IS to Recovered
+    else  # Person will progress from H to Recovered
         schedule!(agent.id, dt + Day(dur), to_R!, model)
     end
 end
@@ -372,7 +396,7 @@ to_D!(agent::Person, model, dt) = agent.status = :D
 # Infect contacts event
 
 function infect_contacts!(agent::Person, model, dt)
-    agent.status != :IA && agent.status != :IS && return  # Person is either not infectious or isolated in hospital
+    agent.infectious == false && return  # Person is not infectious
     agent.quarantined && return  # A quarantined person cannot infect anyone
     dow       = dayofweek(dt)    # 1 = Monday, ..., 7 = Sunday
     agents    = model.agents
@@ -419,9 +443,10 @@ end
 # Functions dependent on model parameters; called by event functions
 
 # Durations
-dur_incubation(params) = rand(LogNormal(params.mu_incubation, params.sigma_incubation))  # Duration of E + IA
-dur_onset2test(params) = rand(Gamma(params.shape_onset2test, params.scale_onset2test))
-dur_IS(params,  age)   = rand(Poisson(exp(params.b0_IS  + params.b1_IS  * age)))
+dur_incubation(params) = max(1, round(Int, rand(LogNormal(params.mu_incubation, params.sigma_incubation))))  # Duration of E + IA
+dur_infectious(params) = max(1, round(Int, rand(LogNormal(params.mu_infectious, params.sigma_infectious))))  # Duration of IA + IS
+dur_onset2test(params) = max(1, round(Int, rand(Gamma(params.shape_onset2test, params.scale_onset2test))))
+dur_H(params,   age)   = rand(Poisson(exp(params.b0_H   + params.b1_H   * age)))
 dur_W(params,   age)   = rand(Poisson(exp(params.b0_W   + params.b1_W   * age)))
 dur_ICU(params, age)   = rand(Poisson(exp(params.b0_ICU + params.b1_ICU * age)))
 dur_V(params,   age)   = rand(Poisson(exp(params.b0_V   + params.b1_V   * age)))

@@ -14,8 +14,9 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 
 - S:   Susceptible. Not infected (next state is E).
 - E:   Exposed. Infected but asymptomatic and not infectious (next state is IA).
-- IA:  Infectious and asymptomatic (next state is IS or R).
-- IS:  Infectious and symptomatic (next state is H or R).
+- IA:  Infectious and asymptomatic (next state is IS at the end of the incubation period, or R at the end of the infectious period).
+- IS:  Infectious and symptomatic (next state is H at the end of the infectious period).
+- H:   Home, symptomatic but not infectious (next state is W or R).
 - W:   Admitted to a ward bed (next state is ICU or R).
 - ICU: Admitted to an unventilated ICU bed (next state is V or W).
 - V:   On a ventilator in ICU (next state is D or ICU).
