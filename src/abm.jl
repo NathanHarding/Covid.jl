@@ -278,7 +278,7 @@ exit_quarantine!(agent::Person, model, dt) = agent.quarantined = false
 function to_E!(agent::Person, model, dt)
     agent.status = :E
     agent.dt_last_transition = dt
-    dur = dur_E(model.params, agent.age)
+    dur = max(2, round(Int, dur_incubation(model.params) - 2.0))  # At least 2 days
     schedule!(agent.id, dt + Day(dur), to_IA!, model)
 end
 
@@ -288,10 +288,9 @@ function to_IA!(agent::Person, model, dt)
     params = model.params
     age    = agent.age
     if rand() <= p_IS(params, age)  # Person will progress from IA to IS
-        dur = dur_IA(params, age)
-        schedule!(agent.id, dt + Day(dur), to_IS!, model)
+        schedule!(agent.id, dt + Day(2), to_IS!, model)
     else  # Person will progress from IA to Recovered
-        dur = dur_IA(params, age) + dur_IS(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation duration
+        dur = 2 + dur_IS(params, age)  # Assume asymptomatic duration is the same as pre-hospitalisation symptomatic duration
         schedule!(agent.id, dt + Day(dur), to_R!, model)
     end
     infect_contacts!(agent, model, dt)  # Schedules an immediate status change for each contact
@@ -300,10 +299,13 @@ end
 function to_IS!(agent::Person, model, dt)
     agent.status = :IS
     agent.dt_last_transition = dt
-    rand() < active_testing_regime.IS && schedule!(agent.id, dt + Day(2), test_for_covid!, model)  # Test 2 days after onset of symptoms
     params = model.params
-    age = agent.age
-    dur = dur_IS(params, age)
+    age    = agent.age
+    dur    = dur_IS(params, age)
+    if rand() < active_testing_regime.IS  # Test for Covid
+        dur_totest = max(2, round(Int, dur_onset2test(params)) - 2)  # Time between onset of symptoms and test...at least 2 days
+        dur_totest < dur && schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
+    end
     if rand() <= p_W(params, age)  # Person will progress from IS to W
         schedule!(agent.id, dt + Day(dur), to_W!, model)
     else  # Person will progress from IS to Recovered
@@ -372,16 +374,19 @@ to_D!(agent::Person, model, dt) = agent.status = :D
 function infect_contacts!(agent::Person, model, dt)
     agent.status != :IA && agent.status != :IS && return  # Person is either not infectious or isolated in hospital
     agent.quarantined && return  # A quarantined person cannot infect anyone
+    dow       = dayofweek(dt)    # 1 = Monday, ..., 7 = Sunday
     agents    = model.agents
     params    = model.params
     pr_infect = p_infect(params, agent.age)
     n_susceptible_contacts = 0
     contactlist = get_contactlist(agent, :household, params)
     n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.household, pr_infect, agents, model, dt, n_susceptible_contacts)
-    contactlist = get_contactlist(agent, :school, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
-    contactlist = get_contactlist(agent, :workplace, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
+    if dow <= 5
+        contactlist = get_contactlist(agent, :school, params)
+        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
+        contactlist = get_contactlist(agent, :workplace, params)
+        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
+    end
     contactlist = get_contactlist(agent, :community, params)
     n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.community, pr_infect, agents, model, dt, n_susceptible_contacts)
     contactlist = get_contactlist(agent, :social, params)
@@ -413,13 +418,15 @@ end
 ################################################################################
 # Functions dependent on model parameters; called by event functions
 
-# Duration of each state
-dur_E(params,   age) = rand(Poisson(exp(params.b0_E   + params.b1_E   * age)))
-dur_IA(params,  age) = rand(Poisson(exp(params.b0_IA  + params.b1_IA  * age)))
-dur_IS(params,  age) = rand(Poisson(exp(params.b0_IS  + params.b1_IS  * age)))
-dur_W(params,   age) = rand(Poisson(exp(params.b0_W   + params.b1_W   * age)))
-dur_ICU(params, age) = rand(Poisson(exp(params.b0_ICU + params.b1_ICU * age)))
-dur_V(params,   age) = rand(Poisson(exp(params.b0_V   + params.b1_V   * age)))
+# Durations
+dur_incubation(params) = rand(LogNormal(params.mu_incubation, params.sigma_incubation))  # Duration of E + IA
+dur_onset2test(params) = rand(Gamma(params.shape_onset2test, params.scale_onset2test))
+dur_IS(params,  age)   = rand(Poisson(exp(params.b0_IS  + params.b1_IS  * age)))
+dur_W(params,   age)   = rand(Poisson(exp(params.b0_W   + params.b1_W   * age)))
+dur_ICU(params, age)   = rand(Poisson(exp(params.b0_ICU + params.b1_ICU * age)))
+dur_V(params,   age)   = rand(Poisson(exp(params.b0_V   + params.b1_V   * age)))
+
+# Transition probabilities
 
 "Pr(Next state is W | Current state is IS, age)."
 function p_W(params, age)
@@ -434,7 +441,6 @@ function p_W(params, age)
     params.p_W_gte80
 end
 
-# Transition probabilities
 p_IS(params, age)  = 1.0 / (1.0 + exp(-(params.a0_IS  + params.a1_IS  * age)))  # Pr(Next state is IS  | Current state is IA,  age)
 p_ICU(params, age) = 1.0 / (1.0 + exp(-(params.a0_ICU + params.a1_ICU * age)))  # Pr(Next state is ICU | Current state is W,   age)
 p_V(params, age)   = 1.0 / (1.0 + exp(-(params.a0_V   + params.a1_V   * age)))  # Pr(Next state is V   | Current state is ICU, age)
