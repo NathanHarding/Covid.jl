@@ -16,7 +16,7 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 - E:   Exposed. Infected but asymptomatic and not infectious (next state is IA).
 - IA:  Infectious and asymptomatic (next state is IS at the end of the incubation period, or R at the end of the infectious period).
 - IS:  Infectious and symptomatic (next state is H at the end of the infectious period).
-- H:   Home, symptomatic but not infectious (next state is W or R).
+- H:   Home and symptomatic but not infectious (next state is W or R).
 - W:   Admitted to a ward bed (next state is ICU or R).
 - ICU: Admitted to an unventilated ICU bed (next state is V or W).
 - V:   On a ventilator in ICU (next state is D or ICU).
@@ -61,6 +61,15 @@ According to the above, when `t=7`:
 2. The scheduled state change occurs during `(7, 8)`, i.e., after 7 periods but before 8 periods have elapsed.
 3. Time is incremented to `t=8`.
 4. Data is collected as at `t=8`. The state change is recorded as having _occurred by_ `t=8`, with the change actually occurring during `(7, 8)`.
+
+## Training the model
+
+We estimate parameters for transition probabilities and conditional duration distributions from the literature and from DHHS linked data.
+
+We estimate the probabilities that make up the baseline policies by training the model for the period 25th Jan to 23rd Mar inclusive.
+This baseline period includes restrictions on overseas arrivals, but otherwise excludes Stage 1/2/3 restrictions.
+On the other hand many people were working from home and/or self-isolating before 23/3.
+
 
 ## Next
 

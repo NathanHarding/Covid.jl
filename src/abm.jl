@@ -79,16 +79,29 @@ const workplaces = Vector{Int}[]  # workplaces[i][j] is the id of the jth worker
 const communitycontacts = Int[]   # Contains person IDs. Community contacts can be derived for each person.
 const socialcontacts    = Int[]   # Contains person IDs. Social contacts can be derived for each person.
 
+const most_severe_states = [:IA, :H, :W, :ICU, :V, :D]
+const lb2dist = Dict{Int, Categorical}()  # agegroup_lb => Distribution of most severe state. Determines the path the the person is on.
+
+function update_lb2dist!(params)
+    lb2dist[0]  = Categorical([params.p_IA_0to9,   params.p_H_0to9,   params.p_W_0to9,   params.p_ICU_0to9,   params.p_V_0to9,   params.p_death_0to9])
+    lb2dist[10] = Categorical([params.p_IA_10to19, params.p_H_10to19, params.p_W_10to19, params.p_ICU_10to19, params.p_V_10to19, params.p_death_10to19])
+    lb2dist[20] = Categorical([params.p_IA_20to29, params.p_H_20to29, params.p_W_20to29, params.p_ICU_20to29, params.p_V_20to29, params.p_death_20to29])
+    lb2dist[30] = Categorical([params.p_IA_30to39, params.p_H_30to39, params.p_W_30to39, params.p_ICU_30to39, params.p_V_30to39, params.p_death_30to39])
+    lb2dist[40] = Categorical([params.p_IA_40to49, params.p_H_40to49, params.p_W_40to49, params.p_ICU_40to49, params.p_V_40to49, params.p_death_40to49])
+    lb2dist[50] = Categorical([params.p_IA_50to59, params.p_H_50to59, params.p_W_50to59, params.p_ICU_50to59, params.p_V_50to59, params.p_death_50to59])
+    lb2dist[60] = Categorical([params.p_IA_60to69, params.p_H_60to69, params.p_W_60to69, params.p_ICU_60to69, params.p_V_60to69, params.p_death_60to69])
+    lb2dist[70] = Categorical([params.p_IA_70to79, params.p_H_70to79, params.p_W_70to79, params.p_ICU_70to79, params.p_V_70to79, params.p_death_70to79])
+    lb2dist[80] = Categorical([params.p_IA_gte80,  params.p_H_gte80,  params.p_W_gte80,  params.p_ICU_gte80,  params.p_V_gte80,  params.p_death_gte80])
+end
+
 ################################################################################
 # The model
 
 mutable struct Person <: AbstractAgent
     id::Int
-    status::Symbol  # S, E, I1, I2, I3, H, C, V, R, D
+    status::Symbol  # S, E, IA, IS, H, W, ICU, V, R, D
     infectious::Bool
     dt_last_transition::Date  # Date of most recent status change
-    has_been_to_icu::Bool
-    has_been_ventilated::Bool
     last_test_date::Date
     last_test_result::Char  # 'p' = positive, 'n' = negative
     quarantined::Bool
@@ -104,9 +117,12 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, dummydate(), false, false, dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, dummydate(), dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
+    # Set conveniences
+    update_lb2dist!(params)
+
     # Init model
     agedist  = indata["age_distribution"]
     npeople  = round(Int, sum(agedist.count))
@@ -286,16 +302,69 @@ function to_E!(agent::Person, model, dt)
     agent.dt_last_transition = dt
     params = model.params
 
-    # Determine non-infectious and infectious periods
+    # Schedule the incubation and infectious periods
     incubation_period  = max(2, dur_incubation(params))  # Time from exposure to symptoms (if they occur); at least 2 days
     days_to_infectious = max(1, incubation_period - 2)   # Time from exposure to infectious; at least 1 day; starts 1 or 2 days before incubation period ends
     days_infectious    = max(incubation_period - days_to_infectious + 1, dur_infectious(params))  # Ensures patient is still infectious after incubation period
     schedule!(agent.id, dt + Day(days_to_infectious), to_IA!, model)  # Person becomes IA before the incubation period ends
-    schedule!(agent.id, dt + Day(days_to_infectious) + Day(days_infectious), exit_infectious!, model)  # Exit infectiousness some time after incubation
 
-    # Determine status after incubation period
-    if rand() <= p_IS(params, agent.age)  # Person will progress from IA to IS
-        schedule!(agent.id, dt + Day(incubation_period), to_IS!, model)
+    # Schedule the entire sequence of states after the infectious period 
+    most_severe_state = draw_most_severe_state(agent.age)  # IA, Symp, W, ICU, V, D
+    if most_severe_state == :IA
+        schedule!(agent.id, dt + Day(days_to_infectious) + Day(days_infectious), to_R!, model)  # Person remains IA and recovers upon exiting the infectious period
+    else
+        dur_symptomatic = draw_total_duration_of_symptoms(agent.age, most_severe_state, params) # Total duration of symptoms (onset upon exiting the incubation period)
+        dur_symptomatic = max(dur_symptomatic, days_to_infectious + days_infectious - incubation_period)  # Ensures symptoms end on or after the end of the infectious period
+        dur_IS          = days_to_infectious + days_infectious - incubation_period  # Duration of symptoms during the infectious period
+        dur_non_IS      = dur_symptomatic - dur_IS                                  # Duration of symptoms after  the infectious period
+        schedule!(agent.id, dt + Day(incubation_period), to_IS!, model)          # Person progresses from IA to IS upon exiting the incubation period
+        schedule!(agent.id, dt + Day(incubation_period + dur_IS), to_H!, model)  # Person progresses from IS to Home upon exiting infectious period
+        if most_severe_state == :H        # Person progresses from Home to Recovery
+            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
+        elseif most_severe_state == :W    # Person progresses from Home to Ward to Recovery
+            dur      = round(Int, rand()*dur_non_IS)  # Split dur_non_IS between Home and Ward
+            dur_home = max(dur, dur_non_IS - dur)     # dur_home is the larger portion of dur_non_IS
+            dur_ward = dur_non_IS - dur_home
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_symptomatic), to_R!, model)
+        elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
+            d         = Dirichlet(3, params.alpha)  # Split dur_non_IS between Home, Ward and ICU
+            probs     = sort!(rand(d))
+            dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
+            dur_ward  = round(Int, probs[3] * dur_non_IS)  # Largest  share to Ward
+            dur_ward1 = round(Int, 0.5 * dur_ward)  # 1st ward stay (before ICU)
+            dur_icu   = dur_non_IS - dur_home - dur_ward
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1), to_ICU!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu), to_W!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
+        elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Ventilator->ICU->Ward->Recovery
+            d         = Dirichlet(4, params.alpha)  # Split dur_non_IS between Home, Ward, ICU and Ventilator
+            probs     = sort!(rand(d))
+            dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
+            dur_ward  = round(Int, probs[4] * dur_non_IS)  # Largest  share to Ward
+            dur_ward1 = round(Int, 0.5 * dur_ward)
+            dur_icu   = round(Int, probs[3] * dur_non_IS)  # 2nd largest share to ICU
+            dur_icu1  = round(Int, 0.5 * dur_icu)
+            dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1), to_ICU!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu1), to_V!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu1 + dur_vent), to_ICU!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu + dur_vent), to_W!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
+        else  #most_severe_state == :D    # Path is: Home->Ward->ICU->Ventilator->Death
+            d         = Dirichlet(4, params.alpha)  # Split dur_non_IS between Home, Ward, ICU and Ventilator
+            probs     = sort!(rand(d))
+            dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
+            dur_ward  = round(Int, probs[2] * dur_non_IS)
+            dur_icu   = round(Int, probs[4] * dur_non_IS)  # Largest  share to ICU
+            dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu  # 2nd largest share to ventilator
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward), to_ICU!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward + dur_icu), to_V!, model)
+            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_D!, model)
+        end
     end
 end
 
@@ -315,79 +384,34 @@ function to_IS!(agent::Person, model, dt)
     end
 end
 
-function exit_infectious!(agent::Person, model, dt)
-    agent.infectious = false
-    if agent.status == :IA
-        to_R!(agent, model, dt)  # Asymptomatic and no longer infectious is effectively recovered
-    else
-        to_H!(agent, model, dt)  # At home, symptomatic but not infectious
-    end
-end
-
 function to_H!(agent::Person, model, dt)
     agent.status = :H
     agent.dt_last_transition = dt
-    params = model.params
-    age    = agent.age
-    dur    = dur_H(params, age)
-    if rand() <= p_W(params, age)  # Person will progress from H to W
-        schedule!(agent.id, dt + Day(dur), to_W!, model)
-    else  # Person will progress from H to Recovered
-        schedule!(agent.id, dt + Day(dur), to_R!, model)
-    end
+    agent.infectious = false
 end
 
 function to_W!(agent::Person, model, dt)
     agent.status = :W
     agent.dt_last_transition = dt
     rand() < active_testing_regime.W && schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
-    params = model.params
-    age    = agent.age
-    dur    = dur_W(params, age)
-    if agent.has_been_to_icu  # Person is improving after ICU - s/he will progress from the ward to recovery after 3 days
-        schedule!(agent.id, dt + Day(3), to_R!, model)
-    elseif rand() <= p_ICU(params, age)  # Person is deteriorating - s/he will progress from the ward to ICU
-        schedule!(agent.id, dt + Day(dur), to_ICU!, model)
-    else  # Person will progress from the ward to Recovered without going to ICU
-        schedule!(agent.id, dt + Day(dur), to_R!, model)
-    end
 end
 
 function to_ICU!(agent::Person, model, dt)
     agent.status = :ICU
     agent.dt_last_transition = dt
-    agent.has_been_to_icu = true
-    params = model.params
-    age    = agent.age
-    dur    = dur_ICU(params, age)
-    if agent.has_been_ventilated  # Person is improving after ventilation - s/he will progress from ICU to the ward after 3 days
-        schedule!(agent.id, dt + Day(3), to_W!, model)
-    elseif rand() <= p_V(params, age)  # Person is deteriorating - s/he will progress from a non-ventilated ICU bed to a ventilated ICU bed
-        schedule!(agent.id, dt + Day(dur), to_V!, model)
-    else  # Person will progress from ICU to the ward without going to a ventilated ICU bed
-        schedule!(agent.id, dt + Day(dur), to_W!, model)
-    end
 end
 
 function to_V!(agent::Person, model, dt)
     agent.status = :V
     agent.dt_last_transition = dt
-    agent.has_been_ventilated = true
-    params = model.params
-    age    = agent.age
-    dur    = dur_V(params, age)
-    if rand() <= p_D(params, age)  # Person will progress from ventilation to deceased
-        schedule!(agent.id, dt + Day(dur), to_D!, model)
-    else  # Person will progress from ventilation to a non-ventilated ICU bed
-        schedule!(agent.id, dt + Day(dur), to_ICU!, model)
-    end
 end
 
 function to_R!(agent::Person, model, dt)
     agent.status = :R
     agent.dt_last_transition = dt
-    agent.last_test_date    = dummydate()
-    agent.last_test_result  = 'n'
+    agent.infectious         = false
+    agent.last_test_date     = dummydate()
+    agent.last_test_result   = 'n'
 end
 
 to_D!(agent::Person, model, dt) = agent.status = :D
@@ -401,7 +425,7 @@ function infect_contacts!(agent::Person, model, dt)
     dow       = dayofweek(dt)    # 1 = Monday, ..., 7 = Sunday
     agents    = model.agents
     params    = model.params
-    pr_infect = p_infect(params, agent.age)
+    pr_infect = p_infect(params)
     n_susceptible_contacts = 0
     contactlist = get_contactlist(agent, :household, params)
     n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.household, pr_infect, agents, model, dt, n_susceptible_contacts)
@@ -442,36 +466,31 @@ end
 ################################################################################
 # Functions dependent on model parameters; called by event functions
 
-# Durations
 dur_incubation(params) = max(1, round(Int, rand(LogNormal(params.mu_incubation, params.sigma_incubation))))  # Duration of E + IA
 dur_infectious(params) = max(1, round(Int, rand(LogNormal(params.mu_infectious, params.sigma_infectious))))  # Duration of IA + IS
 dur_onset2test(params) = max(1, round(Int, rand(Gamma(params.shape_onset2test, params.scale_onset2test))))
-dur_H(params,   age)   = rand(Poisson(exp(params.b0_H   + params.b1_H   * age)))
-dur_W(params,   age)   = rand(Poisson(exp(params.b0_W   + params.b1_W   * age)))
-dur_ICU(params, age)   = rand(Poisson(exp(params.b0_ICU + params.b1_ICU * age)))
-dur_V(params,   age)   = rand(Poisson(exp(params.b0_V   + params.b1_V   * age)))
 
-# Transition probabilities
-
-"Pr(Next state is W | Current state is IS, age)."
-function p_W(params, age)
-    age <= 9  && return params.p_W_0to9
-    age <= 19 && return params.p_W_10to19
-    age <= 29 && return params.p_W_20to29
-    age <= 39 && return params.p_W_30to39
-    age <= 49 && return params.p_W_40to49
-    age <= 59 && return params.p_W_50to59
-    age <= 69 && return params.p_W_60to69
-    age <= 79 && return params.p_W_70to79
-    params.p_W_gte80
+"Draw total duration of symtpoms given person will experience symptoms"
+function draw_total_duration_of_symptoms(age, most_severe_state::Symbol, params)
+    mu = params.b4 * age + params.b0
+    if most_severe_state == :W
+        mu += params.b1
+    elseif most_severe_state == :ICU
+        mu += params.b1 + params.b2
+    elseif most_severe_state == :V
+        mu += params.b1 + params.b2 + params.b3
+    end
+    d  = LogNormal(mu, params.sigma_symptoms)
+    max(1, round(Int, rand(d)))
 end
 
-p_IS(params, age)  = 1.0 / (1.0 + exp(-(params.a0_IS  + params.a1_IS  * age)))  # Pr(Next state is IS  | Current state is IA,  age)
-p_ICU(params, age) = 1.0 / (1.0 + exp(-(params.a0_ICU + params.a1_ICU * age)))  # Pr(Next state is ICU | Current state is W,   age)
-p_V(params, age)   = 1.0 / (1.0 + exp(-(params.a0_V   + params.a1_V   * age)))  # Pr(Next state is V   | Current state is ICU, age)
-p_D(params, age)   = 1.0 / (1.0 + exp(-(params.a0_D   + params.a1_D   * age)))  # Pr(Next state is D   | Current state is V,   age)
+"Draw the most severe state that the person will experience"
+function draw_most_severe_state(age)
+    d = lb2dist[10 * div(age, 10)]  # Age-specific Categorical distribution
+    most_severe_states[rand(d)]
+end
 
-p_infect(params, age) = 1.0 / (1.0 + exp(-(params.a0_infect + params.a1_infect * age)))  # Pr(Infect contact | age)
+p_infect(params) = params.p_infect  # Pr(Person infects contact | Person makes contact with contact)
 
 ################################################################################
 # Utils
