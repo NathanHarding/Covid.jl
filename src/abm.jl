@@ -486,7 +486,8 @@ end
 
 "Draw the most severe state that the person will experience"
 function draw_most_severe_state(age)
-    d = lb2dist[10 * div(age, 10)]  # Age-specific Categorical distribution
+    agegroup_lb = min(80, 10 * div(age, 10))
+    d = lb2dist[agegroup_lb]  # Age-specific Categorical distribution
     most_severe_states[rand(d)]
 end
 

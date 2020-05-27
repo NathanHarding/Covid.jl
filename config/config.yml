@@ -15,7 +15,7 @@ initial_status_counts: {E: 1}
 # The distancing regime is the physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
 distancing_regime:
-    2020-02-26: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
+    2020-01-25: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
     2020-03-23: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # Stage 1: Bars/restaurants/gyms/cinemas
     2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
     2020-03-25: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 2: Recreation, entertainment, retail, weddings/funerals.
@@ -33,14 +33,14 @@ distancing_regime:
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
 testing_regime:
-    2020-02-26: {IS: 0.3, W: 1.0}
+    2020-01-25: {IS: 0.3, W: 1.0}
     2020-05-04: {IS: 0.8, W: 1.0}  # Testing blitz
 
 # Pr(Test | Person is a contact of a known case, status)
 # Asymptomatic contacts are S, E, IA or R.
 # Symptomatic cases are IS because W, ICU and V patients have already been tested upon admission to hospital.
 tracing_regime:
-    2020-02-26: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
+    2020-01-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
     2020-03-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
     2020-05-04: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
 
@@ -49,5 +49,5 @@ tracing_regime:
 # People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
 # People known to be in recent contact with a known case are quarantined for X days.
 quarantine_regime:
-    2020-02-26: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}
+    2020-01-25: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}
     2020-03-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}}}
