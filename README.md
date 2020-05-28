@@ -2,8 +2,16 @@
 
 ## Run the code
 
+The model can be used without having to understand the code.
+
+Configure the model in `${path to Covid.jl}/config/config.yml`
+
+Then from your terminal: `julia ${path to Covid.jl}/scripts/runmodel.jl`
+
+Or from the REPL:
+
 ```julia
-repodir = "C:\\projects\\repos\\Covid.jl"
+repodir = "path to Covid.jl"
 using Pkg
 Pkg.activate(repodir)
 using Covid
@@ -14,7 +22,7 @@ Covid.main(joinpath(repodir, "config", "config.yml"))
 
 The population of interest is constructed from ABS data, which gives an estimated population by age, sex and SA2.
 To faciliate understanding of disease transmission and the effects of various control policies, people are allocated to households,
-schools and work places. In addition, people have social and community contacts. See the __Contacts__ section below for details.
+schools and work places. In addition, people have social and community contacts as described next.
 
 ### Contacts
 
@@ -72,10 +80,10 @@ The set of possible states for each person in the population is:
 - R:   Recovered (final state).
 - D:   Deceased (final state).
 
-### A Brief Note on Time
+### A Brief Note on Simulated Time
 
 The model has a `date` property with a value of type `Date`, with unit 1 day.
-Metrics reported on a given date specify the state of the system as at 12am on that date.
+Metrics reported on a given date specify the state of the system __as at 12am on that date__.
 That is, a new date ticks over and the state of play is recorded before any new events take place.
 All events that occur can be thought of as occuring between 12:00:01 and 23:59:59 inclusive.
 
@@ -86,9 +94,8 @@ Then the person will become symptomatic (state IS) between 12:00:01 and 23:59:59
 
 At the technical level, an event is a function together with some arguments and a scheduled time for execution.
 When the function is executed, more events may be scheduled as part of the execution.
-
 For example, when a person is tested for Covid, his/her _last_test_date_ is updated and test results are scheduled for 2 days into the future.
-S/he is also quarantined until the test result is available, with compliance being a model parameter.
+S/he is also quarantined until the test result is available, with compliance determined by the relevant model parameter.
 
 ## The Sequence of Events
 
@@ -136,6 +143,8 @@ From the end of the infectious period the sequence of events that determine the 
 ### Tracing
 
 ### Quarantining
+
+## Input Data
 
 
 ## Training the model
