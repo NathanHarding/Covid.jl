@@ -30,16 +30,16 @@ using .contacts
 ################################################################################
 # Policies
 
-const active_distancing_regime = DistancingRegime(0.0, 0.0, 0.0, 0.0, 0.0)
-const active_testing_regime    = TestingRegime(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-const active_tracing_regime    = TracingRegime((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
-const active_quarantine_regime = QuarantineRegime((days=0,compliance=0.0), (days=0,compliance=0.0), Dict(:household => (days=0,compliance=0.0)))
+const active_distancing_policy = DistancingPolicy(0.0, 0.0, 0.0, 0.0, 0.0)
+const active_testing_policy    = TestingPolicy(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+const active_tracing_policy    = TracingPolicy((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
+const active_quarantine_policy = QuarantinePolicy((days=0,compliance=0.0), (days=0,compliance=0.0), Dict(:household => (days=0,compliance=0.0)))
 
 function update_policies!(cfg::Config, dt::Date)
-    haskey(cfg.t2distancingregime, dt) && update_struct!(active_distancing_regime, cfg.t2distancingregime[dt])
-    haskey(cfg.t2testingregime, dt)    && update_struct!(active_testing_regime,    cfg.t2testingregime[dt])
-    haskey(cfg.t2tracingregime, dt)    && update_struct!(active_tracing_regime,    cfg.t2tracingregime[dt])
-    haskey(cfg.t2quarantineregime, dt) && update_struct!(active_quarantine_regime, cfg.t2quarantineregime[dt])
+    haskey(cfg.t2distancingpolicy, dt) && update_struct!(active_distancing_policy, cfg.t2distancingpolicy[dt])
+    haskey(cfg.t2testingpolicy, dt)    && update_struct!(active_testing_policy,    cfg.t2testingpolicy[dt])
+    haskey(cfg.t2tracingpolicy, dt)    && update_struct!(active_tracing_policy,    cfg.t2tracingpolicy[dt])
+    haskey(cfg.t2quarantinepolicy, dt) && update_struct!(active_quarantine_policy, cfg.t2quarantinepolicy[dt])
 end
 
 ################################################################################
@@ -205,7 +205,7 @@ function test_for_covid!(agent::Person, model, dt)
     agent.last_test_result == 'p' && return  # Patient is already a known and active case
     agent.last_test_date == dt    && return  # Patient has already been tested at this time step
     agent.last_test_date = dt
-    agent.quarantined = rand() <= active_quarantine_regime.awaiting_test_result.compliance
+    agent.quarantined = rand() <= active_quarantine_policy.awaiting_test_result.compliance
     schedule!(agent.id, dt + Day(2), get_test_result!, model)  # Test result available 2 days after test
 end
 
@@ -217,24 +217,24 @@ function get_test_result!(agent::Person, model, dt)
     else
         metrics[:positives] += 1
         agent.last_test_result = 'p'
-        apply_quarantine_regime!(agent, model, dt)
-        apply_tracing_regime!(agent, model, dt)
+        apply_quarantine_policy!(agent, model, dt)
+        apply_tracing_policy!(agent, model, dt)
     end
 end
 
-function apply_tracing_regime!(agent::Person, model, dt)
-    regime = active_tracing_regime
+function apply_tracing_policy!(agent::Person, model, dt)
+    policy = active_tracing_policy
     params = model.params
     contactlist = get_contactlist(agent, :household, params)
-    trace_and_test_contacts!(contactlist, model, dt, 1, regime.household.asymptomatic, regime.household.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 1, policy.household.asymptomatic, policy.household.symptomatic)
     contactlist = get_contactlist(agent, :school, params)
-    trace_and_test_contacts!(contactlist, model, dt, 2, regime.school.asymptomatic,    regime.school.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 2, policy.school.asymptomatic,    policy.school.symptomatic)
     contactlist = get_contactlist(agent, :workplace, params)
-    trace_and_test_contacts!(contactlist, model, dt, 3, regime.workplace.asymptomatic, regime.workplace.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 3, policy.workplace.asymptomatic, policy.workplace.symptomatic)
     contactlist = get_contactlist(agent, :community, params)
-    trace_and_test_contacts!(contactlist, model, dt, 3, regime.community.asymptomatic, regime.community.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 3, policy.community.asymptomatic, policy.community.symptomatic)
     contactlist = get_contactlist(agent, :social, params)
-    trace_and_test_contacts!(contactlist, model, dt, 3, regime.social.asymptomatic, regime.social.symptomatic)
+    trace_and_test_contacts!(contactlist, model, dt, 3, policy.social.asymptomatic, policy.social.symptomatic)
 end
 
 "Delay is the delay between t and the contact's test date"
@@ -252,29 +252,29 @@ function trace_and_test_contacts!(contactlist, model, dt, delay, p_asymptomatic,
     end
 end
 
-"Apply active_quarantine_regime to the agent (who just tested positive) and his/her contacts."
-function apply_quarantine_regime!(agent::Person, model, dt)
+"Apply active_quarantine_policy to the agent (who just tested positive) and his/her contacts."
+function apply_quarantine_policy!(agent::Person, model, dt)
     # Quarantine the newly positive agent
-    regime = active_quarantine_regime
-    if rand() <= regime.tested_positive.compliance
+    policy = active_quarantine_policy
+    if rand() <= policy.tested_positive.compliance
         agent.quarantined = true
         status = agent.status
         if status == :IS  # Symptomatic
-            dt_exit_quarantine = agent.dt_last_transition + Day(regime.tested_positive.days)  # Days post onset of symptoms
+            dt_exit_quarantine = agent.dt_last_transition + Day(policy.tested_positive.days)  # Days post onset of symptoms
             if dt_exit_quarantine <= dt
                 agent.quarantined = false
             else
                 schedule!(agent.id, dt_exit_quarantine, exit_quarantine!, model)
             end
         elseif status == :S || status == :E || status == :IA  # Asymptomatic
-            schedule!(agent.id, dt + Day(regime.tested_positive.days - 2), exit_quarantine!, model)  # Days post test date
+            schedule!(agent.id, dt + Day(policy.tested_positive.days - 2), exit_quarantine!, model)  # Days post test date
         end
     end
 
     # Quarantine the newly positive agent's contacts 
     agents = model.agents
     params = model.params
-    for (contact_network, quarantine_condition) in regime.case_contacts
+    for (contact_network, quarantine_condition) in policy.case_contacts
         p = quarantine_condition.compliance
         p == 0.0 && continue
         dur = quarantine_condition.days
@@ -378,7 +378,7 @@ end
 function to_IS!(agent::Person, model, dt)
     agent.status = :IS
     agent.dt_last_transition = dt
-    if rand() < active_testing_regime.IS  # Test for Covid
+    if rand() < active_testing_policy.IS  # Test for Covid
         dur_totest = max(2, dur_onset2test(model.params) - 2)  # Time between onset of symptoms and test...at least 2 days
         schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
     end
@@ -393,7 +393,7 @@ end
 function to_W!(agent::Person, model, dt)
     agent.status = :W
     agent.dt_last_transition = dt
-    rand() < active_testing_regime.W && schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
+    rand() < active_testing_policy.W && schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
 end
 
 function to_ICU!(agent::Person, model, dt)
@@ -428,17 +428,17 @@ function infect_contacts!(agent::Person, model, dt)
     pr_infect = p_infect(params)
     n_susceptible_contacts = 0
     contactlist = get_contactlist(agent, :household, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.household, pr_infect, agents, model, dt, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.household, pr_infect, agents, model, dt, n_susceptible_contacts)
     if dow <= 5
         contactlist = get_contactlist(agent, :school, params)
-        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
+        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
         contactlist = get_contactlist(agent, :workplace, params)
-        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
+        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
     end
     contactlist = get_contactlist(agent, :community, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.community, pr_infect, agents, model, dt, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.community, pr_infect, agents, model, dt, n_susceptible_contacts)
     contactlist = get_contactlist(agent, :social, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_regime.social,    pr_infect, agents, model, dt, n_susceptible_contacts)
+    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.social,    pr_infect, agents, model, dt, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, dt + Day(1), infect_contacts!, model)
 end
 
