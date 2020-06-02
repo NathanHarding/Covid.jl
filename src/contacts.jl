@@ -19,9 +19,9 @@ function populate_contacts!(agents, params, indata,
     populate_households_without_children!(households, agents, indata["household_distribution"])
     @info "$(now()) Populating schools"
     populate_school_contacts!(agents, age2first, indata["primaryschool_distribution"], indata["secondaryschool_distribution"],
-                              params.ncontacts_s2s, params.ncontacts_t2t, params.ncontacts_t2s)
+                              params[:ncontacts_s2s], params[:ncontacts_t2t], params[:ncontacts_t2s])
     @info "$(now()) Populating work places"
-    populate_workplace_contacts!(workplaces, agents, params.n_workplace_contacts, indata["workplace_distribution"])
+    populate_workplace_contacts!(workplaces, agents, params[:n_workplace_contacts], indata["workplace_distribution"])
     @info "$(now()) Populating communities"
     populate_community_contacts!(communitycontacts, agents)
     @info "$(now()) Populating social networks"

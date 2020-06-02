@@ -6,6 +6,7 @@ using CSV
 using DataFrames
 using Dates
 using Logging
+using Optim
 using YAML
 
 include("abm.jl")  # Depends on: core, config, contacts
@@ -20,8 +21,8 @@ function train!(configfile::String)
     @info "$(now()) Importing input data"
     indata = import_data(cfg.datadir, cfg.input_data)
 
-    @info "$(now()) Importing training data"
-    # TODO
+    @info "$(now()) Preparing training data"
+    y = prepare_training_data(cfg.datadir, d)  # date => (colname1=val1, ...)
 
     @info "$(now()) Initialising model"
     params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(indata["params"].name, indata["params"].value))
@@ -40,6 +41,7 @@ function train!(configfile::String)
 for x in theta
     println("$(logit_to_prob(x))")
 end
+    write_theta(theta, unknowns, cfg, model.params)
     @info "$(now()) Finished"
 end
 
@@ -129,7 +131,7 @@ function params_to_theta!(theta, i, unknowns::Vector{Symbol}, params)
     i
 end
 
-function theta_to_params!(theata, i, unknowns::Vector{Symbol}, params::Dict{Symbol, Float64}, )
+function theta_to_params!(theta, i, unknowns::Vector{Symbol}, params::Dict{Symbol, Float64}, )
     for nm in unknowns
         i += 1
         params[nm] = logit_to_prob(theta[i])
@@ -172,11 +174,9 @@ function lossfunc(theta::Vector{Float64}, y, model, cfg, metrics, unknowns)
     for r in 1:nruns
         reset_model!(model, cfg)
         reset_metrics!(model)
-        t = 0
         for date in firstday:Day(1):lastday
             model.date = date
-            t += 1
-            LL += loglikelihood(y[t], metrics[:positives])  # System as of 12am on date
+            LL += loglikelihood(y[date][:positives], metrics[:positives])  # System as of 12am on date
             date == lastday && break
             update_policies!(cfg, date)
             execute_events!(model.schedule[date], agents, model, date, metrics)
@@ -186,7 +186,10 @@ function lossfunc(theta::Vector{Float64}, y, model, cfg, metrics, unknowns)
     -LL / (ndays * nruns)
 end
 
-loglikelihood(y, yhat) = y * log(yhat) - yhat  # LL(Y ~ Poisson(yhat)) without constant term
+function loglikelihood(y, yhat)
+    yhat <= 0.01 && return 0.0
+    y * log(yhat) - yhat  # LL(Y ~ Poisson(yhat)) without constant term
+end
 
 ################################################################################
 # Utils
@@ -201,6 +204,44 @@ function import_data(datadir::String, tablename2datafile::Dict{String, String})
         result[tablename] = DataFrame(CSV.File(filename))
     end
     result
+end
+
+"Returns: Dict{Date, NamedTuple}.  date => (colname1=val1, ...)."
+function prepare_training_data(datadir, d)
+    y = DataFrame(CSV.File(joinpath(datadir, "input", d["training_data"])))  # Columns: date, newpositives, positives
+    sort!(y, (:date,))
+    prevdate = nothing
+    result   = nothing
+    n = size(y, 1)
+    for i = 1:n
+        dt = Date(y[i, :date])
+        nt = copy(y[i, :])  # Row as NamedTuple
+        if isnothing(prevdate)
+            T = typeof(nt)
+            result     = Dict{Date, T}()
+            result[dt] = nt
+            prevdate   = dt
+        else
+            for t in (prevdate + Day(1)):Day(1):(dt - Day(1))
+                result[t] = result[prevdate]  # Only valid for cumulative data
+            end
+            result[dt] = nt
+        end
+    end
+    result
+end
+
+function write_theta(theta, unknowns, cfg, params)
+    result = DataFrame(name=String[], value=Float64[])
+    n = size(theta, 1)
+    for i = 1:n
+        nm  = Symbol("x$(i)")  # TODO: Fix this using unknowns
+        p   = logit_to_prob(theta[i])
+        row = (name="", value=p)
+        push!(result, row)
+    end
+    outfile = joinpath(cfg.datadir, "output", "trained_params.tsv")
+    CSV.write(outfile, result; delim='\t')
 end
 
 end

@@ -8,15 +8,16 @@ input_data:
     household_distribution:       "households.tsv"
 firstday: 2020-01-25  # Simulation starts at 12am
 lastday:  2020-03-31  # Simulation finishes at 12am
-nruns: 50
+nruns: 50             # Number of runs per function call by the solver
 initial_status_counts: {E: 1}
 
 ################################################################################
 # Config specifically for training
 
-# Solver options
+training_data: "training_data.csv"
+
 solver_options:
-    iterations: 10
+    iterations: 100
     show_trace: true
 
 # Unknowns to be estimated via training. Initial values are supplied in the config.
