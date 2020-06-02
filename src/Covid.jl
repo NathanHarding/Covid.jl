@@ -5,6 +5,9 @@ using DataFrames
 using Dates
 using Logging
 
+include("trainmodel.jl")
+using .trainmodel
+
 include("abm.jl")  # Depends on: core, config, contacts
 using .abm
 
@@ -20,7 +23,7 @@ function main(configfile::String)
     outfile = joinpath(cfg.datadir, "output", "metrics.csv")
 
     @info "$(now()) Initialising model"
-    params = construct_params(indata["params"])
+    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(indata["params"].name, indata["params"].value))
     model  = init_model(indata, params, cfg)
 
     # Run model
@@ -54,15 +57,6 @@ function import_data(datadir::String, tablename2datafile::Dict{String, String})
         result[tablename] = DataFrame(CSV.File(filename))
     end
     result
-end
-
-function construct_params(params::DataFrame)
-    d = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(params.name, params.value))
-    dict_to_namedtuple(d)
-end
-
-function dict_to_namedtuple(d::Dict{Symbol, V}) where V
-    (; zip(Tuple(collect(keys(d))), Tuple(collect(values(d))))...)
 end
 
 end

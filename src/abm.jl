@@ -83,15 +83,15 @@ const most_severe_states = [:IA, :H, :W, :ICU, :V, :D]
 const lb2dist = Dict{Int, Categorical}()  # agegroup_lb => Distribution of most severe state. Determines the path the the person is on.
 
 function update_lb2dist!(params)
-    lb2dist[0]  = Categorical([params.p_IA_0to9,   params.p_H_0to9,   params.p_W_0to9,   params.p_ICU_0to9,   params.p_V_0to9,   params.p_death_0to9])
-    lb2dist[10] = Categorical([params.p_IA_10to19, params.p_H_10to19, params.p_W_10to19, params.p_ICU_10to19, params.p_V_10to19, params.p_death_10to19])
-    lb2dist[20] = Categorical([params.p_IA_20to29, params.p_H_20to29, params.p_W_20to29, params.p_ICU_20to29, params.p_V_20to29, params.p_death_20to29])
-    lb2dist[30] = Categorical([params.p_IA_30to39, params.p_H_30to39, params.p_W_30to39, params.p_ICU_30to39, params.p_V_30to39, params.p_death_30to39])
-    lb2dist[40] = Categorical([params.p_IA_40to49, params.p_H_40to49, params.p_W_40to49, params.p_ICU_40to49, params.p_V_40to49, params.p_death_40to49])
-    lb2dist[50] = Categorical([params.p_IA_50to59, params.p_H_50to59, params.p_W_50to59, params.p_ICU_50to59, params.p_V_50to59, params.p_death_50to59])
-    lb2dist[60] = Categorical([params.p_IA_60to69, params.p_H_60to69, params.p_W_60to69, params.p_ICU_60to69, params.p_V_60to69, params.p_death_60to69])
-    lb2dist[70] = Categorical([params.p_IA_70to79, params.p_H_70to79, params.p_W_70to79, params.p_ICU_70to79, params.p_V_70to79, params.p_death_70to79])
-    lb2dist[80] = Categorical([params.p_IA_gte80,  params.p_H_gte80,  params.p_W_gte80,  params.p_ICU_gte80,  params.p_V_gte80,  params.p_death_gte80])
+    lb2dist[0]  = Categorical([params[:p_IA_0to9],   params[:p_H_0to9],   params[:p_W_0to9],   params[:p_ICU_0to9],   params[:p_V_0to9],   params[:p_death_0to9]])
+    lb2dist[10] = Categorical([params[:p_IA_10to19], params[:p_H_10to19], params[:p_W_10to19], params[:p_ICU_10to19], params[:p_V_10to19], params[:p_death_10to19]])
+    lb2dist[20] = Categorical([params[:p_IA_20to29], params[:p_H_20to29], params[:p_W_20to29], params[:p_ICU_20to29], params[:p_V_20to29], params[:p_death_20to29]])
+    lb2dist[30] = Categorical([params[:p_IA_30to39], params[:p_H_30to39], params[:p_W_30to39], params[:p_ICU_30to39], params[:p_V_30to39], params[:p_death_30to39]])
+    lb2dist[40] = Categorical([params[:p_IA_40to49], params[:p_H_40to49], params[:p_W_40to49], params[:p_ICU_40to49], params[:p_V_40to49], params[:p_death_40to49]])
+    lb2dist[50] = Categorical([params[:p_IA_50to59], params[:p_H_50to59], params[:p_W_50to59], params[:p_ICU_50to59], params[:p_V_50to59], params[:p_death_50to59]])
+    lb2dist[60] = Categorical([params[:p_IA_60to69], params[:p_H_60to69], params[:p_W_60to69], params[:p_ICU_60to69], params[:p_V_60to69], params[:p_death_60to69]])
+    lb2dist[70] = Categorical([params[:p_IA_70to79], params[:p_H_70to79], params[:p_W_70to79], params[:p_ICU_70to79], params[:p_V_70to79], params[:p_death_70to79]])
+    lb2dist[80] = Categorical([params[:p_IA_gte80],  params[:p_H_gte80],  params[:p_W_gte80],  params[:p_ICU_gte80],  params[:p_V_gte80],  params[:p_death_gte80]])
 end
 
 ################################################################################
@@ -119,7 +119,7 @@ end
 
 Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, dummydate(), dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
 
-function init_model(indata::Dict{String, DataFrame}, params::T, cfg) where {T <: NamedTuple}
+function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float64}, cfg)
     # Set conveniences
     update_lb2dist!(params)
 
@@ -328,7 +328,7 @@ function to_E!(agent::Person, model, dt)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_symptomatic), to_R!, model)
         elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
-            d         = Dirichlet(3, params.alpha)  # Split dur_non_IS between Home, Ward and ICU
+            d         = Dirichlet(3, params[:alpha])  # Split dur_non_IS between Home, Ward and ICU
             probs     = sort!(rand(d))
             dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
             dur_ward  = round(Int, probs[3] * dur_non_IS)  # Largest  share to Ward
@@ -339,7 +339,7 @@ function to_E!(agent::Person, model, dt)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
         elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Ventilator->ICU->Ward->Recovery
-            d         = Dirichlet(4, params.alpha)  # Split dur_non_IS between Home, Ward, ICU and Ventilator
+            d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
             probs     = sort!(rand(d))
             dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
             dur_ward  = round(Int, probs[4] * dur_non_IS)  # Largest  share to Ward
@@ -354,7 +354,7 @@ function to_E!(agent::Person, model, dt)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu + dur_vent), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
         else  #most_severe_state == :D    # Path is: Home->Ward->ICU->Ventilator->Death
-            d         = Dirichlet(4, params.alpha)  # Split dur_non_IS between Home, Ward, ICU and Ventilator
+            d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
             probs     = sort!(rand(d))
             dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
             dur_ward  = round(Int, probs[2] * dur_non_IS)
@@ -466,21 +466,21 @@ end
 ################################################################################
 # Functions dependent on model parameters; called by event functions
 
-dur_incubation(params) = max(1, round(Int, rand(LogNormal(params.mu_incubation, params.sigma_incubation))))  # Duration of E + IA
-dur_infectious(params) = max(1, round(Int, rand(LogNormal(params.mu_infectious, params.sigma_infectious))))  # Duration of IA + IS
-dur_onset2test(params) = max(1, round(Int, rand(Gamma(params.shape_onset2test, params.scale_onset2test))))
+dur_incubation(params) = max(1, round(Int, rand(LogNormal(params[:mu_incubation], params[:sigma_incubation]))))  # Duration of E + IA
+dur_infectious(params) = max(1, round(Int, rand(LogNormal(params[:mu_infectious], params[:sigma_infectious]))))  # Duration of IA + IS
+dur_onset2test(params) = max(1, round(Int, rand(Gamma(params[:shape_onset2test],  params[:scale_onset2test]))))
 
 "Draw total duration of symtpoms given person will experience symptoms"
 function draw_total_duration_of_symptoms(age, most_severe_state::Symbol, params)
-    mu = params.b4 * age + params.b0
+    mu = params[:b4] * age + params[:b0]
     if most_severe_state == :W
-        mu += params.b1
+        mu += params[:b1]
     elseif most_severe_state == :ICU
-        mu += params.b1 + params.b2
+        mu += params[:b1] + params[:b2]
     elseif most_severe_state == :V
-        mu += params.b1 + params.b2 + params.b3
+        mu += params[:b1] + params[:b2] + params[:b3]
     end
-    d  = LogNormal(mu, params.sigma_symptoms)
+    d  = LogNormal(mu, params[:sigma_symptoms])
     max(1, round(Int, rand(d)))
 end
 
@@ -491,7 +491,7 @@ function draw_most_severe_state(age)
     most_severe_states[rand(d)]
 end
 
-p_infect(params) = params.p_infect  # Pr(Person infects contact | Person makes contact with contact)
+p_infect(params) = params[:p_infect]  # Pr(Person infects contact | Person makes contact with contact)
 
 ################################################################################
 # Utils
@@ -506,12 +506,12 @@ function get_contactlist(agent::Person, network::Symbol, params)
     elseif network == :workplace
         if !isnothing(agent.ij_workplace)
             i, j = agent.ij_workplace
-            ncontacts = get_community_contactids!(workplaces[i], j, Int(params.n_workplace_contacts), agentid)
+            ncontacts = get_community_contactids!(workplaces[i], j, Int(params[:n_workplace_contacts]), agentid)
         end
     elseif network == :community
-        ncontacts = get_community_contactids!(communitycontacts, agent.i_community, Int(params.n_community_contacts), agentid)
+        ncontacts = get_community_contactids!(communitycontacts, agent.i_community, Int(params[:n_community_contacts]), agentid)
     elseif network == :social
-        ncontacts = get_community_contactids!(socialcontacts, agent.i_social, Int(params.n_social_contacts), agentid)
+        ncontacts = get_community_contactids!(socialcontacts, agent.i_social, Int(params[:n_social_contacts]), agentid)
     end
     view(contactids, 1:ncontacts)
 end

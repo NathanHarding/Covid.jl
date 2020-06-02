@@ -168,8 +168,9 @@ struct Config
     end
 end
 
-function Config(configfile::String)
-    d = YAML.load_file(configfile)
+Config(configfile::String) = Config(YAML.load_file(configfile))
+
+function Config(d::Dict)
     status0            = Dict(Symbol(k) => v for (k, v) in d["initial_status_counts"])
     firstday           = Date(d["firstday"])
     lastday            = Date(d["lastday"])

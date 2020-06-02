@@ -1,0 +1,60 @@
+datadir: "C:\\projects\\data\\dhhs\\covid-abm"
+input_data:
+    params:                       "params.tsv"
+    age_distribution:             "population_by_age_VIC.tsv"
+    workplace_distribution:       "workplace_by_size_VIC.tsv"
+    primaryschool_distribution:   "avg_yearlevel_size_distribution_primary.tsv"
+    secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
+    household_distribution:       "households.tsv"
+firstday: 2020-01-25  # Simulation starts at 12am
+lastday:  2020-03-31  # Simulation finishes at 12am
+nruns: 50
+initial_status_counts: {E: 1}
+
+################################################################################
+# Config specifically for training
+
+# Solver options
+solver_options:
+    iterations: 10
+    show_trace: true
+
+# Unknowns to be estimated via training. Initial values are supplied in the config.
+unknowns:
+    params: p_infect
+    distancing_policy:
+        2020-01-25: [household, school, workplace, community, social]
+    testing_policy:
+        2020-01-25: IS
+
+################################################################################
+
+# The physical distancing policy.
+# The numbers are Pr(Contact a person in the contact list during any given day)
+distancing_policy:
+    2020-01-25: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal
+
+# 14 probabilities: 5 baseline + 9 modifiers
+#    2020-02-26: {household: ph, school: ps,  workplace: pw,             community: pc,             social: psoc}                    # Normal
+#    2020-03-23: {household: ph, school: ps,  workplace: pw1*pw,         community: pc1*pc,         social: psoc1*psoc}              # Stage 1: Bars/restaurants take-away, close gyms/cinemas/churches
+#    2020-03-24: {household: ph, school: 0.0, workplace: pw1*pw,         community: pc1*pc,         social: psoc1*psoc}              # School closures
+#    2020-03-25: {household: ph, school: 0.0, workplace: pw2*pw1*pw,     community: pc2*pc1*pc,     social: psoc2*psoc1*psoc}        # Stage 2: Recreation, entertainment, retail, weddings/funerals.
+#    2020-03-30: {household: ph, school: 0.0, workplace: pw3*pw2*pw1*pw, community: pc3*pc2*pc1*pc, social: psoc3*psoc2*psoc1*psoc}  # Stage 3: Work from home, gatherings of <=2
+
+
+# Pr(Test | Person is not a contact of a known case, status)
+# Typically only people who are symptomatic and satisfy other criteria are tested
+testing_policy:
+    2020-01-25: {IS: 0.3, W: 1.0}
+
+# Pr(Test | Person is a contact of a known case, status)
+# Asymptomatic contacts are S, E, IA or R.
+# Symptomatic contacts are IS because W, ICU and V patients have already been tested upon admission to hospital.
+tracing_policy:
+    2020-01-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
+
+# People who are awaiting test results are quarantined until the result is available, which is assumed to be 2 days after the test date.
+# People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
+# People known to be in recent contact with a known case are quarantined for X days.
+quarantine_policy:
+    2020-01-25: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 12, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}

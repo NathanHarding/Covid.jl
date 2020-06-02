@@ -1,5 +1,4 @@
 datadir: "C:\\projects\\data\\dhhs\\covid-abm"
-#datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
 input_data:
     params:                       "params.tsv"
     age_distribution:             "population_by_age_VIC.tsv"
@@ -20,14 +19,6 @@ distancing_policy:
     2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
     2020-03-25: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 2: Recreation, entertainment, retail, weddings/funerals.
     2020-03-30: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
-
-# 14 probabilities: 5 baseline + 9 modifiers
-#    2020-02-26: {household: ph, school: ps,  workplace: pw,             community: pc,             social: psoc}                    # Normal
-#    2020-03-23: {household: ph, school: ps,  workplace: pw1*pw,         community: pc1*pc,         social: psoc1*psoc}              # Stage 1: Bars/restaurants take-away, close gyms/cinemas/churches
-#    2020-03-24: {household: ph, school: 0.0, workplace: pw1*pw,         community: pc1*pc,         social: psoc1*psoc}              # School closures
-#    2020-03-25: {household: ph, school: 0.0, workplace: pw2*pw1*pw,     community: pc2*pc1*pc,     social: psoc2*psoc1*psoc}        # Stage 2: Recreation, entertainment, retail, weddings/funerals.
-#    2020-03-30: {household: ph, school: 0.0, workplace: pw3*pw2*pw1*pw, community: pc3*pc2*pc1*pc, social: psoc3*psoc2*psoc1*psoc}  # Stage 3: Work from home, gatherings of <=2
-
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested

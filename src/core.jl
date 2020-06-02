@@ -10,9 +10,9 @@ using Dates
 
 abstract type AbstractAgent end
 
-mutable struct Model{A <: AbstractAgent, T <: NamedTuple}
+mutable struct Model{A <: AbstractAgent}
     agents::Vector{A}
-    params::T
+    params::Dict{Symbol, Float64}
     date::Date
     lastday::Date
     schedule::Dict{Date, Dict{Int, Tuple{Function, Int}}}  # t => i => event, where i denotes the order of events
