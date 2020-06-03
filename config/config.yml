@@ -8,7 +8,7 @@ input_data:
     household_distribution:       "households.tsv"
 firstday: 2020-01-25  # Simulation starts at 12am
 lastday:  2020-09-01  # Simulation finishes at 12am
-nruns: 3
+nruns: 100
 initial_status_counts: {E: 1}
 
 # The physical distancing policy.
@@ -19,12 +19,17 @@ distancing_policy:
     2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
     2020-03-25: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 2: Recreation, entertainment, retail, weddings/funerals.
     2020-03-30: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
+    2020-04-27: {household: 0.5, school: 0.002, workplace: 0.01, community: 0.04, social: 0.04}     # Social/community impatience
+    2020-05-25: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.04}  # Schools partially reopen
+    2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.02, social: 0.05}  # Small gatherings at home
+    2020-06-08: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.02, social: 0.05}  # Schools fully reopen
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
 testing_policy:
     2020-01-25: {IS: 0.3, W: 1.0}
-    2020-05-04: {IS: 0.8, W: 1.0}  # Testing blitz
+    2020-04-27: {IS: 0.8, W: 1.0}  # Testing blitz
+    2020-05-25: {IS: 0.3, W: 1.0}  # Resume normal testing
 
 # Pr(Test | Person is a contact of a known case, status)
 # Asymptomatic contacts are S, E, IA or R.

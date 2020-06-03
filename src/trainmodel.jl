@@ -165,31 +165,36 @@ end
 # Loss function
 
 function lossfunc(theta::Vector{Float64}, y, model, cfg, metrics, unknowns)
-    LL = 0.0
+    loss = 0.0
     nruns    = cfg.nruns
     firstday = cfg.firstday
     lastday  = cfg.lastday
     agents   = model.agents
+    ndays    = (lastday - firstday).value + 1
+    denom    = ndays * nruns
     theta_to_params_and_policies!(theta, unknowns, cfg, model.params)
     for r in 1:nruns
         reset_model!(model, cfg)
         reset_metrics!(model)
         for date in firstday:Day(1):lastday
             model.date = date
-            LL += loglikelihood(y[date][:positives], metrics[:positives])  # System as of 12am on date
+            loss += sq_error(y[date][:positives], metrics[:positives]) / denom  # System as of 12am on date
+            #loss += loglikelihood(y[date][:positives], metrics[:positives])  # System as of 12am on date
             date == lastday && break
             update_policies!(cfg, date)
             execute_events!(model.schedule[date], agents, model, date, metrics)
         end
     end
-    ndays = (lastday - firstday).value + 1
-    -LL / (ndays * nruns)
+    #-loss / denom
+    loss <= 1.0 ? 0.0 : log(loss)
 end
 
 function loglikelihood(y, yhat)
     yhat <= 0.01 && return 0.0
     y * log(yhat) - yhat  # LL(Y ~ Poisson(yhat)) without constant term
 end
+
+sq_error(y, yhat) = (y - yhat) ^ 2
 
 ################################################################################
 # Utils
@@ -235,9 +240,9 @@ function write_theta(theta, unknowns, cfg, params)
     result = DataFrame(name=String[], value=Float64[])
     n = size(theta, 1)
     for i = 1:n
-        nm  = Symbol("x$(i)")  # TODO: Fix this using unknowns
+        nm  = "x$(i)"  # TODO: Fix this using unknowns
         p   = logit_to_prob(theta[i])
-        row = (name="", value=p)
+        row = (name=nm, value=p)
         push!(result, row)
     end
     outfile = joinpath(cfg.datadir, "output", "trained_params.tsv")

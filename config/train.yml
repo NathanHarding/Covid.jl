@@ -17,7 +17,7 @@ initial_status_counts: {E: 1}
 training_data: "training_data.csv"
 
 solver_options:
-    iterations: 100
+    iterations: 40
     show_trace: true
 
 # Unknowns to be estimated via training. Initial values are supplied in the config.
