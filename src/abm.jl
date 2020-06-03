@@ -225,25 +225,26 @@ end
 function apply_tracing_policy!(agent::Person, model, dt)
     policy = active_tracing_policy
     params = model.params
-    contactlist = get_contactlist(agent, :household, params)
-    trace_and_test_contacts!(contactlist, model, dt, 1, policy.household.asymptomatic, policy.household.symptomatic)
-    contactlist = get_contactlist(agent, :school, params)
-    trace_and_test_contacts!(contactlist, model, dt, 2, policy.school.asymptomatic,    policy.school.symptomatic)
-    contactlist = get_contactlist(agent, :workplace, params)
-    trace_and_test_contacts!(contactlist, model, dt, 3, policy.workplace.asymptomatic, policy.workplace.symptomatic)
-    contactlist = get_contactlist(agent, :community, params)
-    trace_and_test_contacts!(contactlist, model, dt, 3, policy.community.asymptomatic, policy.community.symptomatic)
-    contactlist = get_contactlist(agent, :social, params)
-    trace_and_test_contacts!(contactlist, model, dt, 3, policy.social.asymptomatic, policy.social.symptomatic)
+    ncontacts = get_contactlist(agent, :household, params)
+    trace_and_test_contacts!(ncontacts, model, dt, 1, policy.household.asymptomatic, policy.household.symptomatic)
+    ncontacts = get_contactlist(agent, :school, params)
+    trace_and_test_contacts!(ncontacts, model, dt, 2, policy.school.asymptomatic,    policy.school.symptomatic)
+    ncontacts = get_contactlist(agent, :workplace, params)
+    trace_and_test_contacts!(ncontacts, model, dt, 3, policy.workplace.asymptomatic, policy.workplace.symptomatic)
+    ncontacts = get_contactlist(agent, :community, params)
+    trace_and_test_contacts!(ncontacts, model, dt, 3, policy.community.asymptomatic, policy.community.symptomatic)
+    ncontacts = get_contactlist(agent, :social, params)
+    trace_and_test_contacts!(ncontacts, model, dt, 3, policy.social.asymptomatic, policy.social.symptomatic)
 end
 
 "Delay is the delay between t and the contact's test date"
-function trace_and_test_contacts!(contactlist, model, dt, delay, p_asymptomatic, p_symptomatic)
+function trace_and_test_contacts!(ncontacts, model, dt, delay, p_asymptomatic, p_symptomatic)
     p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
     agents = model.agents
-    for contactid in contactlist
-        contact = agents[contactid]
-        status  = contact.status
+    for i = 1:ncontacts
+        contactid = contactids[i]
+        contact   = agents[contactid]
+        status    = contact.status
         if status == :IS  # Symptomatic and not hospitalised
             rand() <= p_symptomatic && schedule!(contact.id, dt + Day(delay), test_for_covid!, model)
         elseif (status == :S || status == :E || status == :IA || status == :R)  # Asymptomatic
@@ -279,9 +280,10 @@ function apply_quarantine_policy!(agent::Person, model, dt)
         p == 0.0 && continue
         dur = quarantine_condition.days
         dur == 0 && continue
-        contactlist = get_contactlist(agent, contact_network, params)
-        for contactid in contactlist
-            contact = agents[contactid]
+        ncontacts = get_contactlist(agent, contact_network, params)
+        for i = 1:ncontacts
+            contactid = contactids[i]
+            contact   = agents[contactid]
             contact.quarantined && continue  # Contact is already quarantined
             status = contact.status
             if (status == :S || status == :E || status == :IA || status == :IS) && rand() <= p
@@ -328,10 +330,20 @@ function to_E!(agent::Person, model, dt)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_symptomatic), to_R!, model)
         elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
-            d         = Dirichlet(3, params[:alpha])  # Split dur_non_IS between Home, Ward and ICU
-            probs     = sort!(rand(d))
-            dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
-            dur_ward  = round(Int, probs[3] * dur_non_IS)  # Largest  share to Ward
+            #d         = Dirichlet(3, params[:alpha])  # Split dur_non_IS between Home, Ward and ICU
+            #probs     = sort!(rand(d))
+            #dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
+            #dur_ward  = round(Int, probs[3] * dur_non_IS)  # Largest  share to Ward
+
+            r1 = rand()
+            r2 = rand()
+            r3 = rand()
+            denom = r1 + r2 + r3
+            pmin  = min(r1, r2, r3) / denom
+            pmax  = max(r1, r2, r3) / denom
+            dur_home  = round(Int, pmin * dur_non_IS)  # Smallest share to Home
+            dur_ward  = round(Int, pmax * dur_non_IS)  # Largest  share to Ward
+
             dur_ward1 = round(Int, 0.5 * dur_ward)  # 1st ward stay (before ICU)
             dur_icu   = dur_non_IS - dur_home - dur_ward
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
@@ -339,12 +351,18 @@ function to_E!(agent::Person, model, dt)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
         elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Ventilator->ICU->Ward->Recovery
-            d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
-            probs     = sort!(rand(d))
-            dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
-            dur_ward  = round(Int, probs[4] * dur_non_IS)  # Largest  share to Ward
+            #d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
+            #probs     = sort!(rand(d))
+
+            p1 = 0.3  # Home
+            p2 = 0.4  # Ward
+            p3 = 0.3  # ICU
+            #p4 = 0.2  # Ventilator
+
+            dur_home  = round(Int, p1 * dur_non_IS)
+            dur_ward  = round(Int, p2 * dur_non_IS)
             dur_ward1 = round(Int, 0.5 * dur_ward)
-            dur_icu   = round(Int, probs[3] * dur_non_IS)  # 2nd largest share to ICU
+            dur_icu   = round(Int, p3 * dur_non_IS)
             dur_icu1  = round(Int, 0.5 * dur_icu)
             dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
@@ -354,12 +372,16 @@ function to_E!(agent::Person, model, dt)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu + dur_vent), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
         else  #most_severe_state == :D    # Path is: Home->Ward->ICU->Ventilator->Death
-            d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
-            probs     = sort!(rand(d))
-            dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
-            dur_ward  = round(Int, probs[2] * dur_non_IS)
-            dur_icu   = round(Int, probs[4] * dur_non_IS)  # Largest  share to ICU
-            dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu  # 2nd largest share to ventilator
+            #d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
+            #probs     = sort!(rand(d))
+            p1 = 0.3  # Home
+            p2 = 0.4  # Ward
+            p3 = 0.3  # ICU
+            #p4 = 0.2  # Ventilator
+            dur_home  = round(Int, p1 * dur_non_IS)
+            dur_ward  = round(Int, p2 * dur_non_IS)
+            dur_icu   = round(Int, p3 * dur_non_IS)
+            dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward), to_ICU!, model)
             schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward + dur_icu), to_V!, model)
@@ -427,24 +449,25 @@ function infect_contacts!(agent::Person, model, dt)
     params    = model.params
     pr_infect = p_infect(params)
     n_susceptible_contacts = 0
-    contactlist = get_contactlist(agent, :household, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.household, pr_infect, agents, model, dt, n_susceptible_contacts)
+    ncontacts = get_contactlist(agent, :household, params)
+    n_susceptible_contacts = infect_contactlist!(ncontacts, active_distancing_policy.household, pr_infect, agents, model, dt, n_susceptible_contacts)
     if dow <= 5
-        contactlist = get_contactlist(agent, :school, params)
-        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
-        contactlist = get_contactlist(agent, :workplace, params)
-        n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
+        ncontacts = get_contactlist(agent, :school, params)
+        n_susceptible_contacts = infect_contactlist!(ncontacts, active_distancing_policy.school,    pr_infect, agents, model, dt, n_susceptible_contacts)
+        ncontacts = get_contactlist(agent, :workplace, params)
+        n_susceptible_contacts = infect_contactlist!(ncontacts, active_distancing_policy.workplace, pr_infect, agents, model, dt, n_susceptible_contacts)
     end
-    contactlist = get_contactlist(agent, :community, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.community, pr_infect, agents, model, dt, n_susceptible_contacts)
-    contactlist = get_contactlist(agent, :social, params)
-    n_susceptible_contacts = infect_contactlist!(contactlist, active_distancing_policy.social,    pr_infect, agents, model, dt, n_susceptible_contacts)
+    ncontacts = get_contactlist(agent, :community, params)
+    n_susceptible_contacts = infect_contactlist!(ncontacts, active_distancing_policy.community, pr_infect, agents, model, dt, n_susceptible_contacts)
+    ncontacts = get_contactlist(agent, :social, params)
+    n_susceptible_contacts = infect_contactlist!(ncontacts, active_distancing_policy.social,    pr_infect, agents, model, dt, n_susceptible_contacts)
     n_susceptible_contacts > 0 && schedule!(agent.id, dt + Day(1), infect_contacts!, model)
 end
 
-function infect_contactlist!(contactlist, pr_contact, pr_infect, agents, model, dt, n_susceptible_contacts)
-    for id in contactlist
-        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[id], model, dt, n_susceptible_contacts)
+function infect_contactlist!(ncontacts, pr_contact, pr_infect, agents, model, dt, n_susceptible_contacts)
+    for i = 1:ncontacts
+        contactid = contactids[i]
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[contactid], model, dt, n_susceptible_contacts)
     end
     n_susceptible_contacts
 end
@@ -513,7 +536,7 @@ function get_contactlist(agent::Person, network::Symbol, params)
     elseif network == :social
         ncontacts = get_community_contactids!(socialcontacts, agent.i_social, Int(params[:n_social_contacts]), agentid)
     end
-    view(contactids, 1:ncontacts)
+    ncontacts
 end
 
 function get_household_contactids!(household, agentid)

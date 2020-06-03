@@ -1,6 +1,6 @@
-module runmodel
+module run_model
 
-export run
+export runmodel
 
 import Base.run  # Extending this function
 
@@ -12,7 +12,7 @@ using Logging
 include("abm.jl")  # Depends on: core, config, contacts
 using .abm
 
-function run(configfile::String)
+function runmodel(configfile::String)
     @info "$(now()) Configuring model"
     cfg = Config(configfile)
 

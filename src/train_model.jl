@@ -1,6 +1,6 @@
-module trainmodel
+module train_model
 
-export train!
+export trainmodel
 
 using CSV
 using DataFrames
@@ -12,7 +12,7 @@ using YAML
 include("abm.jl")  # Depends on: core, config, contacts
 using .abm
 
-function train!(configfile::String)
+function trainmodel(configfile::String)
     @info "$(now()) Configuring model"
     d   = YAML.load_file(configfile)
     cfg = Config(d)

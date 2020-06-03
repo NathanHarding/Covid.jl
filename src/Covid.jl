@@ -1,9 +1,9 @@
 module Covid
 
-include("runmodel.jl")  # Exports: run
-using .runmodel
+include("run_model.jl")  # Exports: runmodel
+using .run_model
 
-include("trainmodel.jl")  # Exports: train!
-using .trainmodel
+include("train_model.jl")  # Exports: trainmodel
+using .train_model
 
 end
