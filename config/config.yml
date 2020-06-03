@@ -6,8 +6,9 @@ input_data:
     primaryschool_distribution:   "avg_yearlevel_size_distribution_primary.tsv"
     secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
     household_distribution:       "households.tsv"
-firstday: 2020-01-25  # Simulation starts at 12am
-lastday:  2020-09-01  # Simulation finishes at 12am
+firstday: 2020-01-25  # Simulation starts at 12am.
+lastday:  2021-01-01  # Simulation finishes at 12am
+#lastday:  2020-09-01  # Simulation finishes at 12am
 nruns: 100
 initial_status_counts: {E: 1}
 
@@ -19,10 +20,11 @@ distancing_policy:
     2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
     2020-03-25: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 2: Recreation, entertainment, retail, weddings/funerals.
     2020-03-30: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
-    2020-04-27: {household: 0.5, school: 0.002, workplace: 0.01, community: 0.04, social: 0.04}     # Social/community impatience
+    2020-04-27: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.04, social: 0.04}     # Social/community impatience
     2020-05-25: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.04}  # Schools partially reopen
-    2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.02, social: 0.05}  # Small gatherings at home
-    2020-06-08: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.02, social: 0.05}  # Schools fully reopen
+    2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
+    2020-06-08: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen
+    2020-06-12: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
