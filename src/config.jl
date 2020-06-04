@@ -152,6 +152,9 @@ struct Config
     t2quarantinepolicy::Dict{Date, QuarantinePolicy}  # t => quarantine_policy
 
     function Config(datadir, input_data, initial_status_counts, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        if isempty(datadir)
+            datadir = normpath(joinpath(@__DIR__, "..", "data"))
+        end
         !isdir(datadir) && error("The data directory does not exist: $(datadir)")
         for (tablename, datafile) in input_data
             filename = joinpath(datadir, "input", datafile)

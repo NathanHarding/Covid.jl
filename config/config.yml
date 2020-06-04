@@ -1,15 +1,13 @@
-datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
-#datadir: "C:\\projects\\data\\dhhs\\covid-abm"
+datadir: ""  # Defaults to Covid.jl/data. Must contain directories input and output.
 input_data:
     params:                       "params.tsv"
-    age_distribution:             "population_by_age_VIC.tsv"
-    workplace_distribution:       "workplace_by_size_VIC.tsv"
+    age_distribution:             "population_by_age.tsv"
+    workplace_distribution:       "workplace_by_size.tsv"
     primaryschool_distribution:   "avg_yearlevel_size_distribution_primary.tsv"
     secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
     household_distribution:       "households.tsv"
 firstday: 2020-01-25  # Simulation starts at 12am.
 lastday:  2021-01-01  # Simulation finishes at 12am
-#lastday:  2020-08-01  # Simulation finishes at 12am
 nruns: 100
 initial_status_counts: {E: 1}
 

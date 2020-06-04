@@ -1,0 +1,75 @@
+name	value	description	source
+n_social_contacts	35	Number of social contacts per person	
+n_community_contacts	20	Number of community contacts per person	
+n_workplace_contacts	20	Number of non-school workplace contacts per person	
+ncontacts_s2s	15	Student-to-student contacts per student	
+ncontacts_t2t	10	Teacher-to-teacher contacts per student	
+ncontacts_t2s	20	Teacher-to-student contacts per teacher	
+p_infect	0.06	Pr(Person infects contact | Person makes contact with contact). 0.06 works.	
+mu_incubation	1.52	Incubation period is LogNormal(mu, sigma). Estimated at mu=1.52, sigma=0.58.	
+sigma_incubation	0.58		
+mu_infectious	1	Infectious period is LogNormal(mu, sigma). Asymptomatic cases recover after infectious period	DHHS Covid literature review team
+sigma_infectious	1		
+shape_onset2test	2.066	Time between onset of symptoms and taking a test is Gamma(shape, scale)	DHHS Covid modelling team
+scale_onset2test	3.35570469798658	Scale = 1/rate = 1 / 0.298	
+b0	1	Duration of symptoms | symptoms ~ LogNormal(b0 + b1*Ward + b2*ICU + b3*Vent + b4*age, s)	To be estimated from DHHS data
+b1	0.7	b0 represents time spent at home for a person aged 0	
+b2	0.7		
+b3	0.7		
+b4	0.01		
+sigma_symptoms	1		
+alpha	1	Concentration parameter of Dirichlet distribution...for partitioning symptomatic period into states	
+p_IA_0to9	0.5	Pr(Most severe state is IA | age)	
+p_H_0to9	0.4995	Pr(Most severe state is H | age)	
+p_W_0to9	0.00047	Pr(Most severe state is W | age)	
+p_ICU_0to9	5E-06	Pr(Most severe state is ICU | age)	
+p_V_0to9	5E-06	Pr(Most severe state is V | age)	
+p_death_0to9	2E-05	Pr(Most severe state is Death | age)	
+p_IA_10to19	0.45		
+p_H_10to19	0.54835		
+p_W_10to19	0.00157		
+p_ICU_10to19	1E-05		
+p_V_10to19	1E-05		
+p_death_10to19	6E-05		
+p_IA_20to29	0.4		
+p_H_20to29	0.5928		
+p_W_20to29	0.00684		
+p_ICU_20to29	3E-05		
+p_V_20to29	3E-05		
+p_death_20to29	0.0003		
+p_IA_30to39	0.35		
+p_H_30to39	0.6292		
+p_W_30to39	0.01976		
+p_ICU_30to39	0.00012		
+p_V_30to39	0.00012		
+p_death_30to39	0.0008		
+p_IA_40to49	0.3		
+p_H_40to49	0.6657		
+p_W_40to49	0.03214		
+p_ICU_40to49	0.00033		
+p_V_40to49	0.00033		
+p_death_40to49	0.0015		
+p_IA_50to59	0.25		
+p_H_50to59	0.6735		
+p_W_50to59	0.06717		
+p_ICU_50to59	0.001665		
+p_V_50to59	0.001665		
+p_death_50to59	0.006		
+p_IA_60to69	0.2		
+p_H_60to69	0.6672		
+p_W_60to69	0.09641		
+p_ICU_60to69	0.007195		
+p_V_60to69	0.007195		
+p_death_60to69	0.022		
+p_IA_70to79	0.15		
+p_H_70to79	0.64345		
+p_W_70to79	0.11732		
+p_ICU_70to79	0.019115		
+p_V_70to79	0.019115		
+p_death_70to79	0.051		
+p_IA_gte80	0.1		
+p_H_gte80	0.6543		
+p_W_gte80	0.0715		
+p_ICU_gte80	0.0406		
+p_V_gte80	0.0406		
+p_death_gte80	0.093		
