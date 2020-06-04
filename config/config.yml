@@ -1,4 +1,5 @@
-datadir: "C:\\projects\\data\\dhhs\\covid-abm"
+datadir: "C:\\Users\\jlaw1812\\data\\covid-abm"
+#datadir: "C:\\projects\\data\\dhhs\\covid-abm"
 input_data:
     params:                       "params.tsv"
     age_distribution:             "population_by_age_VIC.tsv"
@@ -24,7 +25,7 @@ distancing_policy:
     2020-05-25: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.04}  # Schools partially reopen
     2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
     2020-06-09: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)
-    #2020-06-12: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
+    2020-06-15: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
@@ -40,6 +41,7 @@ tracing_policy:
     2020-01-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
     2020-03-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
     2020-05-04: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
+#    2020-06-15: {household: {symptomatic: 1.0, asymptomatic: 1.0}, school: {symptomatic: 1.0, asymptomatic: 1.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 1.0}, social: {symptomatic: 1.0, asymptomatic: 1.0}}
 
 # People who are awaiting test results are quarantined until the result is available, which is currently 2 days after the test date.
 # People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
@@ -47,3 +49,5 @@ tracing_policy:
 quarantine_policy:
     2020-01-25: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}
     2020-03-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}}}
+#    2020-06-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 14, compliance: 0.7},
+#                 case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}, school: {days: 14, compliance: 0.7}, community: {days: 14, compliance: 0.7}, social: {days: 14, compliance: 0.7}}}

@@ -37,6 +37,7 @@ function runmodel(configfile::String)
         reset_metrics!(model)
         reset_output!(output, r)
         for date in firstday:Day(1):lastday
+#println("$(now()). run $(r): $(date) E = $(metrics[:E])")
             model.date = date
             metrics_to_output!(metrics, output, date)  # System as of 12am on date
             date == lastday && break
@@ -44,6 +45,7 @@ function runmodel(configfile::String)
             execute_events!(model.schedule[date], agents, model, date, metrics)
         end
         CSV.write(outfile, output; delim=',', append=r>1)
+        GC.gc()
     end
     @info "$(now()) Finished"
 end
