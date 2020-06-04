@@ -19,7 +19,7 @@ distancing_policy:
     2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
     2020-03-25: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 2: Recreation, entertainment, retail, weddings/funerals.
     2020-03-30: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
-    2020-04-27: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.04, social: 0.04}     # Social/community impatience
+    2020-04-27: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.04, social: 0.04}      # Social/community impatience
     2020-05-25: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.04}  # Schools partially reopen
     2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
     2020-06-09: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)

@@ -47,7 +47,7 @@ function runmodel(configfile::String)
         CSV.write(outfile, output; delim=',', append=r>1)
         GC.gc()
     end
-    @info "$(now()) Finished"
+    @info "$(now()) Finished. Results written to $(outfile)"
 end
 
 ################################################################################
