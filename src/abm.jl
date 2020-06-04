@@ -100,8 +100,12 @@ end
 mutable struct Person <: AbstractAgent
     id::Int
     status::Symbol  # S, E, IA, IS, H, W, ICU, V, R, D
-    infectious::Bool
     dt_last_transition::Date  # Date of most recent status change
+    most_severe_state::Symbol
+    infectious_start::Date
+    infectious_end::Date
+    incubation_end::Date
+    symptoms_end::Date
     last_test_date::Date
     last_test_result::Char  # 'p' = positive, 'n' = negative
     quarantined::Bool
@@ -117,7 +121,7 @@ mutable struct Person <: AbstractAgent
     i_social::Int     # Family and/or friends outside the household. socialcontacts[i_social] == person.id
 end
 
-Person(id::Int, status::Symbol, age::Int) = Person(id, status, false, dummydate(), dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
+Person(id::Int, status::Symbol, age::Int) = Person(id, status, dummydate(), :X, dummydate(), dummydate(), dummydate(), dummydate(), dummydate(), 'n', false, age, 0, nothing, nothing, 0, 0)
 
 function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float64}, cfg)
     # Set conveniences
@@ -149,7 +153,6 @@ function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float6
             agent.status != :S && continue  # We've already reset this person's status from the default status S
             agent.status = status
             status0[id]  = status
-            agent.infectious = status == :IA || status == :IS
             nsuccesses += 1
             nsuccesses == n && break
         end
@@ -168,9 +171,14 @@ function reset_model!(model, cfg)
     params = model.params
     for agent in agents  # Reset each agent's state and schedule a state change
         agent.dt_last_transition = dummydate()
+        agent.most_severe_state  = :X
+        agent.infectious_start   = dummydate()
+        agent.infectious_end     = dummydate()
+        agent.incubation_end     = dummydate()
+        agent.symptoms_end       = dummydate()
         agent.last_test_date     = dummydate()
-        agent.last_test_result  = 'n'
-        agent.quarantined       = false
+        agent.last_test_result   = 'n'
+        agent.quarantined        = false
         status = status0[agent.id]
         if status == :S
             agent.status = :S
@@ -179,7 +187,6 @@ function reset_model!(model, cfg)
         elseif status == :IA
             to_IA!(agent, model, firstday)
         elseif status == :IS
-            agent.infectious = true
             to_IS!(agent, model, firstday)
         elseif status == :H
             to_H!(agent, model, firstday)
@@ -299,139 +306,138 @@ exit_quarantine!(agent::Person, model, dt) = agent.quarantined = false
 ################################################################################
 # State transition events
 
+"Start of the incubation period."
 function to_E!(agent::Person, model, dt)
     agent.status = :E
     agent.dt_last_transition = dt
-    params = model.params
-
-    # Schedule the incubation and infectious periods
-    incubation_period  = max(2, dur_incubation(params))  # Time from exposure to symptoms (if they occur); at least 2 days
-    days_to_infectious = max(1, incubation_period - 2)   # Time from exposure to infectious; at least 1 day; starts 1 or 2 days before incubation period ends
-    days_infectious    = max(incubation_period - days_to_infectious + 1, dur_infectious(params))  # Ensures patient is still infectious after incubation period
-    schedule!(agent.id, dt + Day(days_to_infectious), to_IA!, model)  # Person becomes IA before the incubation period ends
-
-    # Schedule the entire sequence of states after the infectious period 
-    most_severe_state = draw_most_severe_state(agent.age)  # IA, Symp, W, ICU, V, D
-    if most_severe_state == :IA
-        schedule!(agent.id, dt + Day(days_to_infectious) + Day(days_infectious), to_R!, model)  # Person remains IA and recovers upon exiting the infectious period
-    else
-        dur_symptomatic = draw_total_duration_of_symptoms(agent.age, most_severe_state, params) # Total duration of symptoms (onset upon exiting the incubation period)
-        dur_symptomatic = max(dur_symptomatic, days_to_infectious + days_infectious - incubation_period)  # Ensures symptoms end on or after the end of the infectious period
-        dur_IS          = days_to_infectious + days_infectious - incubation_period  # Duration of symptoms during the infectious period
-        dur_non_IS      = dur_symptomatic - dur_IS                                  # Duration of symptoms after  the infectious period
-        schedule!(agent.id, dt + Day(incubation_period), to_IS!, model)          # Person progresses from IA to IS upon exiting the incubation period
-        schedule!(agent.id, dt + Day(incubation_period + dur_IS), to_H!, model)  # Person progresses from IS to Home upon exiting infectious period
-        if most_severe_state == :H        # Person progresses from Home to Recovery
-            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
-        elseif most_severe_state == :W    # Person progresses from Home to Ward to Recovery
-            dur      = round(Int, rand()*dur_non_IS)  # Split dur_non_IS between Home and Ward
-            dur_home = max(dur, dur_non_IS - dur)     # dur_home is the larger portion of dur_non_IS
-            dur_ward = dur_non_IS - dur_home
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_symptomatic), to_R!, model)
-        elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
-            #d         = Dirichlet(3, params[:alpha])  # Split dur_non_IS between Home, Ward and ICU
-            #probs     = sort!(rand(d))
-            #dur_home  = round(Int, probs[1] * dur_non_IS)  # Smallest share to Home
-            #dur_ward  = round(Int, probs[3] * dur_non_IS)  # Largest  share to Ward
-
-            r1 = rand()
-            r2 = rand()
-            r3 = rand()
-            denom = r1 + r2 + r3
-            pmin  = min(r1, r2, r3) / denom
-            pmax  = max(r1, r2, r3) / denom
-            dur_home  = round(Int, pmin * dur_non_IS)  # Smallest share to Home
-            dur_ward  = round(Int, pmax * dur_non_IS)  # Largest  share to Ward
-
-            dur_ward1 = round(Int, 0.5 * dur_ward)  # 1st ward stay (before ICU)
-            dur_icu   = dur_non_IS - dur_home - dur_ward
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1), to_ICU!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu), to_W!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
-        elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Ventilator->ICU->Ward->Recovery
-            #d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
-            #probs     = sort!(rand(d))
-
-            p1 = 0.3  # Home
-            p2 = 0.4  # Ward
-            p3 = 0.3  # ICU
-            #p4 = 0.2  # Ventilator
-
-            dur_home  = round(Int, p1 * dur_non_IS)
-            dur_ward  = round(Int, p2 * dur_non_IS)
-            dur_ward1 = round(Int, 0.5 * dur_ward)
-            dur_icu   = round(Int, p3 * dur_non_IS)
-            dur_icu1  = round(Int, 0.5 * dur_icu)
-            dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1), to_ICU!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu1), to_V!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu1 + dur_vent), to_ICU!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward1 + dur_icu + dur_vent), to_W!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_R!, model)
-        else  #most_severe_state == :D    # Path is: Home->Ward->ICU->Ventilator->Death
-            #d         = Dirichlet(4, params[:alpha])  # Split dur_non_IS between Home, Ward, ICU and Ventilator
-            #probs     = sort!(rand(d))
-            p1 = 0.3  # Home
-            p2 = 0.4  # Ward
-            p3 = 0.3  # ICU
-            #p4 = 0.2  # Ventilator
-            dur_home  = round(Int, p1 * dur_non_IS)
-            dur_ward  = round(Int, p2 * dur_non_IS)
-            dur_icu   = round(Int, p3 * dur_non_IS)
-            dur_vent  = dur_non_IS - dur_home - dur_ward - dur_icu
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home), to_W!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward), to_ICU!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_IS + dur_home + dur_ward + dur_icu), to_V!, model)
-            schedule!(agent.id, dt + Day(incubation_period + dur_symptomatic), to_D!, model)
-        end
-    end
+    days_incubating          = max(2, dur_incubation(model.params))  # Time from exposure to symptoms (if sympmtoms occur); at least 2 days
+    days_to_infectious       = max(1, days_incubating - 2)           # Time from exposure to infectious; at least 1 day; starts 1 or 2 days before incubation period ends
+    agent.infectious_start   = dt + Day(days_to_infectious)
+    agent.incubation_end     = dt + Day(days_incubating)
+    schedule!(agent.id, agent.infectious_start, to_IA!, model)  # Person becomes IA before the incubation period ends
 end
 
+"Start of the infectious period, 1-2 days before the end of the incubation period."
 function to_IA!(agent::Person, model, dt)
     agent.status = :IA
     agent.dt_last_transition = dt
-    agent.infectious = true
+    agent.most_severe_state  = draw_most_severe_state(agent.age)  # IA, Symp, W, ICU, V, D
+    days_to_end_incubation   = (agent.incubation_end - dt).value
+    days_infectious          = max(days_to_end_incubation + 1, dur_infectious(model.params))  # Ensures patient is still infectious after incubation period
+    agent.infectious_end     = dt + Day(days_infectious)
+    if agent.most_severe_state == :IA
+        schedule!(agent.id, agent.infectious_end, to_R!, model)   # Person remains IA and recovers upon exiting the infectious period
+    else
+        schedule!(agent.id, agent.incubation_end, to_IS!, model)  # Person becomes symptomatic after the incubation period
+    end
     infect_contacts!(agent, model, dt)
 end
 
+"End of the incubation period."
 function to_IS!(agent::Person, model, dt)
     agent.status = :IS
     agent.dt_last_transition = dt
-    if rand() < active_testing_policy.IS  # Test for Covid
+    schedule!(agent.id, agent.infectious_end, to_H!, model)  # Person progresses from IS to Home upon exiting infectious period
+    if rand() < active_testing_policy.IS  # Schedule test for Covid
         dur_totest = max(2, dur_onset2test(model.params) - 2)  # Time between onset of symptoms and test...at least 2 days
         schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
     end
 end
 
+"End of the infectious period."
 function to_H!(agent::Person, model, dt)
     agent.status = :H
     agent.dt_last_transition = dt
-    agent.infectious = false
+    days_since_symptomatic   = (dt - agent.incubation_end).value  # Days already spent being symptomatic
+    most_severe_state  = agent.most_severe_state
+    dur_symptomatic    = draw_total_duration_of_symptoms(agent.age, most_severe_state, model.params) # Total duration of symptoms (starting at the end of the incubation period)
+    dur_symptomatic   -= days_since_symptomatic   # Subtract days already spent being symptomatic
+    dur_symptomatic    = max(0, dur_symptomatic)  # Ensure that the next transition is dt or after
+    agent.symptoms_end = dt + Day(dur_symptomatic)
+    if most_severe_state == :H        # Path is: Home->->Recovery
+        schedule!(agent.id, agent.symptoms_end, to_R!, model)
+    elseif most_severe_state == :W    # Path is: Home->Ward->Recovery
+        dur_home = round(Int, 0.4 * dur_symptomatic)   # Split dur_symptomatic: 40% Home, 60% Ward
+        schedule!(agent.id, dt + Day(dur_home), to_W!, model)
+    elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
+        dur_home = round(Int, 0.25 * dur_symptomatic)  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
+        schedule!(agent.id, dt + Day(dur_home), to_W!, model)
+    elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Vent->ICU->Ward->Recovery
+        dur_home = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        schedule!(agent.id, dt + Day(dur_home), to_W!, model)
+    else  # most_severe_state == :D   # Path is: Home->Ward->ICU->Vent->deceased
+        dur_home = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        schedule!(agent.id, dt + Day(dur_home), to_W!, model)
+    end
 end
 
 function to_W!(agent::Person, model, dt)
+    prevstate    = agent.status
     agent.status = :W
     agent.dt_last_transition = dt
     rand() < active_testing_policy.W && schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
+    dur_symptomatic   = (agent.symptoms_end - agent.infectious_end).value  # Duration of symptoms after the infectious period
+    most_severe_state = agent.most_severe_state
+    if most_severe_state == :W        # Path is: Home->Ward->Recovery
+        schedule!(agent.id, agent.symptoms_end, to_R!, model)
+    elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
+        dur_ward = round(Int, 0.2 * dur_symptomatic)  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
+        if prevstate == :H
+            schedule!(agent.id, dt + Day(dur_ward), to_ICU!, model)
+        else  # prevstate == :ICU
+            schedule!(agent.id, agent.symptoms_end, to_R!, model)
+        end
+    elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Vent->ICU->Ward->Recovery
+        dur_ward = round(Int, 0.15 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        if prevstate == :H
+            schedule!(agent.id, dt + Day(dur_ward), to_ICU!, model)
+        else  # prevstate == :ICU
+            schedule!(agent.id, agent.symptoms_end, to_R!, model)
+        end
+    else  # most_severe_state == :D   # Path is: Home->Ward->ICU->Vent->deceased
+        dur_ward = round(Int, 0.3 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        schedule!(agent.id, dt + Day(dur_ward), to_ICU!, model)
+    end
 end
 
 function to_ICU!(agent::Person, model, dt)
+    prevstate    = agent.status
     agent.status = :ICU
     agent.dt_last_transition = dt
+    dur_symptomatic   = (agent.symptoms_end - agent.infectious_end).value  # Duration of symptoms after the infectious period
+    most_severe_state = agent.most_severe_state
+    if most_severe_state == :ICU     # Path is: Home->Ward->ICU->Ward->Recovery
+        dur_icu = round(Int, 0.35 * dur_symptomatic)  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
+        schedule!(agent.id, dt + Day(dur_icu), to_W!, model)
+    elseif most_severe_state == :V   # Path is: Home->Ward->ICU->Vent->ICU->Ward->Recovery
+        dur_icu = round(Int, 0.15 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        if prevstate == :W
+            schedule!(agent.id, dt + Day(dur_icu), to_V!, model)
+        else  # prevstate == :V
+            schedule!(agent.id, dt + Day(dur_icu), to_W!, model)
+        end
+    else  # most_severe_state == :D  # Path is: Home->Ward->ICU->Vent->deceased
+        dur_icu = round(Int, 0.3 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        schedule!(agent.id, dt + Day(dur_icu), to_V!, model)
+    end
 end
 
 function to_V!(agent::Person, model, dt)
     agent.status = :V
     agent.dt_last_transition = dt
+    dur_symptomatic = (agent.symptoms_end - agent.infectious_end).value  # Duration of symptoms after the infectious period
+    if agent.most_severe_state == :V       # Path is: Home->Ward->ICU->Vent->ICU->Ward->Recovery
+        dur_vent = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        schedule!(agent.id, dt + Day(dur_vent), to_ICU!, model)
+    else  # most_severe_state == :D  # Path is: Home->Ward->ICU->Vent->deceased
+        dur_vent = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        schedule!(agent.id, dt + Day(dur_vent), to_D!, model)
+    end
 end
 
 function to_R!(agent::Person, model, dt)
     agent.status = :R
     agent.dt_last_transition = dt
-    agent.infectious         = false
     agent.last_test_date     = dummydate()
     agent.last_test_result   = 'n'
 end
@@ -442,7 +448,7 @@ to_D!(agent::Person, model, dt) = agent.status = :D
 # Infect contacts event
 
 function infect_contacts!(agent::Person, model, dt)
-    agent.infectious == false && return  # Person is not infectious
+    !(agent.status == :IA || agent.status == :IS) && return  # Person is not infectious
     agent.quarantined && return  # A quarantined person cannot infect anyone
     dow       = dayofweek(dt)    # 1 = Monday, ..., 7 = Sunday
     agents    = model.agents
