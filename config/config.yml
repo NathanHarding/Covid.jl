@@ -34,7 +34,7 @@ testing_policy:
 
 # Pr(Test | Person is a contact of a known case, status)
 # Asymptomatic contacts are S, E, IA or R.
-# Symptomatic contacts are IS because W, ICU and V patients have already been tested upon admission to hospital.
+# Symptomatic contacts are IS or H because W, ICU and V patients have already been tested upon admission to hospital.
 tracing_policy:
     2020-01-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
     2020-03-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
@@ -42,7 +42,7 @@ tracing_policy:
 #    2020-06-15: {household: {symptomatic: 1.0, asymptomatic: 1.0}, school: {symptomatic: 1.0, asymptomatic: 1.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 1.0}, social: {symptomatic: 1.0, asymptomatic: 1.0}}
 
 # People who are awaiting test results are quarantined until the result is available, which is currently 2 days after the test date.
-# People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
+# People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS,H), or X days after the test date if asymptomatic.
 # People known to be in recent contact with a known case are quarantined for X days.
 quarantine_policy:
     2020-01-25: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}
