@@ -5,7 +5,7 @@ n_workplace_contacts	20	Number of non-school workplace contacts per person
 ncontacts_s2s	15	Student-to-student contacts per student	
 ncontacts_t2t	10	Teacher-to-teacher contacts per student	
 ncontacts_t2s	20	Teacher-to-student contacts per teacher	
-p_infect	0.05	Pr(Person infects contact | Person makes contact with contact). 0.06 works.	
+p_infect	0.051	Pr(Person infects contact | Person makes contact with contact). 0.06 works.	
 mu_incubation	1.52	Incubation period is LogNormal(mu, sigma). Estimated at mu=1.52, sigma=0.58.	
 sigma_incubation	0.58		
 mu_infectious	1	Infectious period is LogNormal(mu, sigma). Asymptomatic cases recover after infectious period	DHHS Covid literature review team

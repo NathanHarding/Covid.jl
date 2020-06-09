@@ -346,16 +346,17 @@ function to_IS!(agent::Person, model, dt)
     dur_symptomatic       = max(days_to_noninfectious, dur_symptomatic)  # Symptoms end on or after the end of the infectious period
     agent.symptoms_end    = dt + Day(dur_symptomatic)
     if most_severe_state == :H        # Path is: Home->Recovery
-        dur_home = dur_symptomatic
+        dur_home = dur_symptomatic - days_to_noninfectious
     elseif most_severe_state == :W    # Path is: Home->Ward->Recovery
-        dur_home = round(Int, 0.4 * dur_symptomatic)   # Split dur_symptomatic: 40% Home, 60% Ward
+        dur_home = round(Int, 0.4 * dur_symptomatic) - days_to_noninfectious   # Split dur_symptomatic: 40% Home, 60% Ward
     elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
-        dur_home = round(Int, 0.25 * dur_symptomatic)  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
+        dur_home = round(Int, 0.25 * dur_symptomatic) - days_to_noninfectious  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
     elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Vent->ICU->Ward->Recovery
-        dur_home = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        dur_home = round(Int, 0.2 * dur_symptomatic) - days_to_noninfectious   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
     else  # most_severe_state == :D   # Path is: Home->Ward->ICU->Vent->deceased
-        dur_home = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        dur_home = round(Int, 0.2 * dur_symptomatic) - days_to_noninfectious   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
     end
+    dur_home  = max(0, dur_home)
     dt_exit_H = dt + Day(dur_home)
     if most_severe_state == :H  # Person will not be hospitalised
         if dt_exit_H > agent.infectious_end  # Symptoms persist after infectious period -> proceed from IS to H
@@ -382,18 +383,20 @@ function to_H!(agent::Person, model, dt)
     agent.dt_last_transition = dt
     most_severe_state = agent.most_severe_state
     dur_symptomatic   = (agent.symptoms_end - agent.incubation_end).value
+    days_IS           = (dt - agent.infectious_start).value  # Days spent with status IS
     if most_severe_state == :H        # Path is: Home->->Recovery
         schedule!(agent.id, agent.symptoms_end, to_R!, model)
     elseif most_severe_state == :W    # Path is: Home->Ward->Recovery
-        dur_home = round(Int, 0.4 * dur_symptomatic)   # Split dur_symptomatic: 40% Home, 60% Ward
+        dur_home = round(Int, 0.4 * dur_symptomatic) - days_IS   # Split dur_symptomatic: 40% Home, 60% Ward
     elseif most_severe_state == :ICU  # Path is: Home->Ward->ICU->Ward->Recovery
-        dur_home = round(Int, 0.25 * dur_symptomatic)  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
+        dur_home = round(Int, 0.25 * dur_symptomatic) - days_IS  # Split dur_symptomatic: 25% Home, 40% Ward, 35% ICU
     elseif most_severe_state == :V    # Path is: Home->Ward->ICU->Vent->ICU->Ward->Recovery
-        dur_home = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        dur_home = round(Int, 0.2 * dur_symptomatic) - days_IS   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
     else  # most_severe_state == :D   # Path is: Home->Ward->ICU->Vent->deceased
-        dur_home = round(Int, 0.2 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
+        dur_home = round(Int, 0.2 * dur_symptomatic) - days_IS   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
     end
     if most_severe_state != :H  # Person is hospitalised
+        dur_home = max(0, dur_home)
         schedule!(agent.id, agent.incubation_end + Day(dur_home), to_W!, model)  # Proceed from Home to Ward
     end
 end
@@ -477,7 +480,7 @@ to_D!(agent::Person, model, dt) = agent.status = :D
 # Infect contacts event
 
 function infect_contacts!(agent::Person, model, dt)
-    dt > agent.infectious_end && return  # Person is not infectious
+    !(dt >= agent.infectious_start && dt <= agent.infectious_end) && return  # Person is not infectious
     agent.quarantined && return  # A quarantined person cannot infect anyone
     dow       = dayofweek(dt)    # 1 = Monday, ..., 7 = Sunday
     agents    = model.agents
@@ -524,9 +527,32 @@ end
 ################################################################################
 # Functions dependent on model parameters; called by event functions
 
-dur_incubation(params) = max(1, round(Int, rand(LogNormal(params[:mu_incubation], params[:sigma_incubation]))))  # Duration of E + IA
-dur_infectious(params) = max(1, round(Int, rand(LogNormal(params[:mu_infectious], params[:sigma_infectious]))))  # Duration of IA + IS
-dur_onset2test(params) = max(1, round(Int, rand(Gamma(params[:shape_onset2test],  params[:scale_onset2test]))))
+"""
+Time between onset of symptoms (start IS) and taking a test.
+Drawn from Gamma and constrained to be between 1 and 16 days inclusive, which is about the 95th percentile.
+"""
+function dur_onset2test(params)
+    dur = max(1, round(Int, rand(Gamma(params[:shape_onset2test],  params[:scale_onset2test]))))
+    min(dur, 16)
+end
+
+"""
+Duration of E + IA.
+Drawn from LogNormal and constrained to be between 1 and 12 days inclusive, which is about the 95th percentile.
+"""
+function dur_incubation(params)
+    dur = max(1, round(Int, rand(LogNormal(params[:mu_incubation], params[:sigma_incubation]))))
+    min(dur, 12)
+end
+
+"""
+Duration of IA + IS.
+Drawn from LogNormal and constrained to be between 1 and 14 days inclusive, which is about the 95th percentile.
+"""
+function dur_infectious(params)
+    dur = max(1, round(Int, rand(LogNormal(params[:mu_infectious], params[:sigma_infectious]))))
+    min(dur, 14)
+end
 
 "Draw total duration of symtpoms given person will experience symptoms"
 function draw_total_duration_of_symptoms(age, most_severe_state::Symbol, params)
