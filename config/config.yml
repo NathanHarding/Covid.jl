@@ -8,7 +8,7 @@ input_data:
     household_distribution:       "households.tsv"
 firstday: 2020-01-18  # Simulation starts at 12am.
 lastday:  2021-01-01  # Simulation finishes at 12am
-nruns: 100
+nruns: 1000
 forcing:
     2020-01-18: {E: 10}
     2020-01-25: {E: 10}  # At 00:00:01 change 1 person from Susceptible to Exposed
