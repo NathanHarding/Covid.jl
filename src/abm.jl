@@ -93,14 +93,14 @@ function update_lb2dist!(params)
     lb2dist[80] = Categorical([params[:p_IA_gte80],  params[:p_H_gte80],  params[:p_W_gte80],  params[:p_ICU_gte80],  params[:p_V_gte80],  params[:p_death_gte80]])
 end
 
-"Forcibly change a person's status from Susceptible according to cfg.forcing"
+"Forcibly change a person's status from Susceptible according to cfg.forcing[dt]"
 function apply_forcing!(forcing, model, dt)
     !haskey(forcing, dt) && return nothing
-    forcing_dt = forcing[dt]
-    agents  = model.agents
-    npeople = length(agents)
+    status2n = forcing[dt]
+    agents   = model.agents
+    npeople  = length(agents)
     rg = 1:npeople
-    for (status, n) in forcing_dt
+    for (status, n) in status2n
         nsuccesses = 0
         jmax = 10 * npeople  # Ceiling on the number of iterations
         for j = 1:jmax
@@ -381,8 +381,8 @@ function to_H!(agent::Person, model, dt)
     agent.dt_last_transition = dt
     most_severe_state = agent.most_severe_state
     dur_symptomatic   = (agent.symptoms_end - agent.incubation_end).value
-    days_IS           = (dt - agent.infectious_start).value  # Days spent with status IS
-    if most_severe_state == :H        # Path is: Home->->Recovery
+    days_IS           = (dt - agent.incubation_end).value  # Days spent with status IS
+    if most_severe_state == :H        # Path is: Home->Recovery
         schedule!(agent.id, agent.symptoms_end, to_R!, model)
     elseif most_severe_state == :W    # Path is: Home->Ward->Recovery
         dur_home = round(Int, 0.4 * dur_symptomatic) - days_IS   # Split dur_symptomatic: 40% Home, 60% Ward
@@ -395,7 +395,7 @@ function to_H!(agent::Person, model, dt)
     end
     if most_severe_state != :H  # Person is hospitalised
         dur_home = max(0, dur_home)
-        schedule!(agent.id, agent.incubation_end + Day(dur_home), to_W!, model)  # Proceed from Home to Ward
+        schedule!(agent.id, dt + Day(dur_home), to_W!, model)  # Proceed from Home to Ward
     end
 end
 
@@ -562,8 +562,9 @@ function draw_total_duration_of_symptoms(age, most_severe_state::Symbol, params)
     elseif most_severe_state == :V
         mu += params[:b1] + params[:b2] + params[:b3]
     end
-    d  = LogNormal(mu, params[:sigma_symptoms])
-    max(1, round(Int, rand(d)))
+    d   = LogNormal(mu, params[:sigma_symptoms])
+    dur = max(1, round(Int, rand(d)))
+    min(dur, 100)
 end
 
 "Draw the most severe state that the person will experience"

@@ -39,9 +39,9 @@ function execute_events!(events, agents, model, dt, metrics)
     while haskey(events, k)
         func, id = events[k]
         execute_event!(func, agents[id], model, dt, metrics)
-        delete!(events, k)
         k += 1
     end
+    empty!(events)
 end
 
 function init_output(metrics, firstday::Date, lastday::Date)
