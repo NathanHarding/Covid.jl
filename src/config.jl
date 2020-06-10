@@ -142,7 +142,7 @@ end
 struct Config
     datadir::String
     input_data::Dict{String, String}  # tablename => datafile
-    initial_status_counts::Dict{Symbol, Int}  # status => count(status)
+    forcing::Dict{Date, Dict{Symbol, Int}}  # date => {status => count(status)}
     firstday::Date  # Simulation starts at 12am
     lastday::Date   # Simulation finishes at 12am
     nruns::Int
@@ -151,7 +151,7 @@ struct Config
     t2tracingpolicy::Dict{Date, TracingPolicy}        # t => tracing_policy
     t2quarantinepolicy::Dict{Date, QuarantinePolicy}  # t => quarantine_policy
 
-    function Config(datadir, input_data, initial_status_counts, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    function Config(datadir, input_data, forcing, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
         if isempty(datadir)
             datadir = normpath(joinpath(@__DIR__, "..", "data"))
         end
@@ -161,27 +161,37 @@ struct Config
             !isfile(filename) && error("Input data file does not exist: $(filename)")
         end
         registered_statuses = Set([:S, :E, :IA, :IS, :W, :ICU, :V, :R, :D])
-        for (status, n) in initial_status_counts
-            !in(status, registered_statuses) && error("Unknown status $(status)")
-            n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
+        for (dt, status2n) in forcing
+            for (status, n) in status2n
+                !in(status, registered_statuses) && error("Unknown status $(status)")
+                n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
+            end
         end
         firstday > lastday && error("First day is after last day")
         nruns < 1 && error("nruns is less than 1")
-        new(datadir, input_data, initial_status_counts, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        new(datadir, input_data, forcing, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
     end
 end
 
 Config(configfile::String) = Config(YAML.load_file(configfile))
 
 function Config(d::Dict)
-    status0            = Dict(Symbol(k) => v for (k, v) in d["initial_status_counts"])
+    forcing            = construct_forcing(d["forcing"])
     firstday           = Date(d["firstday"])
     lastday            = Date(d["lastday"])
-    t2distancingpolicy = Dict(Date(dt) => DistancingPolicy(policy) for (dt, policy) in d["distancing_policy"])
-    t2testingpolicy    = Dict(Date(dt) => TestingPolicy(policy)    for (dt, policy) in d["testing_policy"])
-    t2tracingpolicy    = Dict(Date(dt) => TracingPolicy(policy)    for (dt, policy) in d["tracing_policy"])
-    t2quarantinepolicy = Dict(Date(dt) => QuarantinePolicy(policy) for (dt, policy) in d["quarantine_policy"])
-    Config(d["datadir"], d["input_data"], status0, firstday, lastday, d["nruns"], t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    t2distancingpolicy = isnothing(d["distancing_policy"]) ? Dict{Date, DistancingPolicy}() : Dict(Date(dt) => DistancingPolicy(policy) for (dt, policy) in d["distancing_policy"])
+    t2testingpolicy    = isnothing(d["testing_policy"])    ? Dict{Date, TestingPolicy}()    : Dict(Date(dt) => TestingPolicy(policy)    for (dt, policy) in d["testing_policy"])
+    t2tracingpolicy    = isnothing(d["tracing_policy"])    ? Dict{Date, TracingPolicy}()    : Dict(Date(dt) => TracingPolicy(policy)    for (dt, policy) in d["tracing_policy"])
+    t2quarantinepolicy = isnothing(d["quarantine_policy"]) ? Dict{Date, QuarantinePolicy}() : Dict(Date(dt) => QuarantinePolicy(policy) for (dt, policy) in d["quarantine_policy"])
+    Config(d["datadir"], d["input_data"], forcing, firstday, lastday, d["nruns"], t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+end
+
+function construct_forcing(d::Dict)
+    result = Dict{Date, Dict{Symbol, Int}}()
+    for (dt, status2n) in d
+        result[Date(dt)] = Dict(Symbol(status) => n for (status, n) in status2n)
+    end
+    result
 end
 
 end

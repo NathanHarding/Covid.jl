@@ -8,7 +8,7 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export Config, metrics, update_policies!, init_model, reset_model!, reset_metrics!,  # API required from any model module
+export Config, metrics, update_policies!, init_model, reset_model!, reset_metrics!, apply_forcing!, # API required from any model module
        init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module as is
 
 using DataFrames
@@ -72,7 +72,6 @@ end
 
 dummydate() = Date(1900, 1, 1)
 
-const status0    = Symbol[]       # Used when resetting the model at the beginning of a run
 const contactids = fill(0, 1000)  # Buffer for a mutable contact list
 const households = Household[]    # households[i].adults[j] is the id of the jth adult in the ith household. Ditto children.
 const workplaces = Vector{Int}[]  # workplaces[i][j] is the id of the jth worker in the ith workplace.
@@ -92,6 +91,46 @@ function update_lb2dist!(params)
     lb2dist[60] = Categorical([params[:p_IA_60to69], params[:p_H_60to69], params[:p_W_60to69], params[:p_ICU_60to69], params[:p_V_60to69], params[:p_death_60to69]])
     lb2dist[70] = Categorical([params[:p_IA_70to79], params[:p_H_70to79], params[:p_W_70to79], params[:p_ICU_70to79], params[:p_V_70to79], params[:p_death_70to79]])
     lb2dist[80] = Categorical([params[:p_IA_gte80],  params[:p_H_gte80],  params[:p_W_gte80],  params[:p_ICU_gte80],  params[:p_V_gte80],  params[:p_death_gte80]])
+end
+
+"Forcibly change a person's status from Susceptible according to cfg.forcing"
+function apply_forcing!(forcing, model, dt)
+    !haskey(forcing, dt) && return nothing
+    forcing_dt = forcing[dt]
+    agents  = model.agents
+    npeople = length(agents)
+    rg = 1:npeople
+    for (status, n) in forcing_dt
+        nsuccesses = 0
+        jmax = 10 * npeople  # Ceiling on the number of iterations
+        for j = 1:jmax
+            id = rand(rg)
+            agent = agents[id]
+            agent.status != :S && continue  # This person's status is already not Susceptible
+            if status == :E
+                execute_event!(to_E!, agent, model, dt, metrics)
+            elseif status == :IA
+                execute_event!(to_IA!, agent, model, dt, metrics)
+            elseif status == :IS
+                execute_event!(to_IS!, agent, model, dt, metrics)
+            elseif status == :H
+                execute_event!(to_H!, agent, model, dt, metrics)
+            elseif status == :W
+                execute_event!(to_W!, agent, model, dt, metrics)
+            elseif status == :ICU
+                execute_event!(to_ICU!, agent, model, dt, metrics)
+            elseif status == :V
+                execute_event!(to_V!, agent, model, dt, metrics)
+            elseif status == :R
+                execute_event!(to_R!, agent, model, dt, metrics)
+            elseif status == :D
+                execute_event!(to_D!, agent, model, dt, metrics)
+            end
+            nsuccesses += 1
+            nsuccesses == n && break
+        end
+    end
+    nothing
 end
 
 ################################################################################
@@ -139,23 +178,6 @@ function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float6
     for id = 1:npeople
         age        = agedist[rand(d_age), :age]
         agents[id] = Person(id, :S, age)
-        push!(status0, :S)
-    end
-
-    # Seed cases
-    rg = 1:npeople
-    for (status, n) in cfg.initial_status_counts
-        nsuccesses = 0
-        jmax = 10 * npeople  # Ceiling on the number of iterations
-        for j = 1:jmax
-            id = rand(rg)
-            agent = agents[id]
-            agent.status != :S && continue  # We've already reset this person's status from the default status S
-            agent.status = status
-            status0[id]  = status
-            nsuccesses += 1
-            nsuccesses == n && break
-        end
     end
 
     # Sort agents and populate contacts
@@ -164,12 +186,10 @@ function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float6
 end
 
 function reset_model!(model, cfg)
-    firstday       = cfg.firstday
     model.schedule = init_schedule(cfg.firstday, cfg.lastday)  # Empty the schedule
-    model.date     = firstday
-    agents = model.agents
-    params = model.params
-    for agent in agents  # Reset each agent's state and schedule a state change
+    model.date     = cfg.firstday
+    for agent in model.agents  # Reset each agent's state
+        agent.status = :S
         agent.dt_last_transition = dummydate()
         agent.most_severe_state  = :X
         agent.infectious_start   = dummydate()
@@ -179,28 +199,6 @@ function reset_model!(model, cfg)
         agent.last_test_date     = dummydate()
         agent.last_test_result   = 'n'
         agent.quarantined        = false
-        status = status0[agent.id]
-        if status == :S
-            agent.status = :S
-        elseif status == :E
-            to_E!(agent, model, firstday)
-        elseif status == :IA
-            to_IA!(agent, model, firstday)
-        elseif status == :IS
-            to_IS!(agent, model, firstday)
-        elseif status == :H
-            to_H!(agent, model, firstday)
-        elseif status == :W
-            to_W!(agent, model, firstday)
-        elseif status == :ICU
-            to_ICU!(agent, model, firstday)
-        elseif status == :V
-            to_V!(agent, model, firstday)
-        elseif status == :R
-            to_R!(agent, model, firstday)
-        elseif status == :D
-            to_D!(agent, model, firstday)
-        end
     end
 end
 

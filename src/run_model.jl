@@ -42,6 +42,7 @@ function runmodel(configfile::String)
             metrics_to_output!(metrics, output, date)  # System as of 12am on date
             date == lastday && break
             update_policies!(cfg, date)
+            apply_forcing!(cfg.forcing, model, date)
             execute_events!(model.schedule[date], agents, model, date, metrics)
         end
         CSV.write(outfile, output; delim=',', append=r>1)
