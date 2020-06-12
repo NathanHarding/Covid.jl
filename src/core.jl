@@ -8,9 +8,7 @@ export Model, AbstractAgent,  # Types
 using DataFrames
 using Dates
 
-abstract type AbstractAgent end
-
-mutable struct Model{A <: AbstractAgent}
+mutable struct Model{A}
     agents::Vector{A}
     params::Dict{Symbol, Float64}
     date::Date
