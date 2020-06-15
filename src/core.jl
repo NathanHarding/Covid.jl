@@ -10,7 +10,7 @@ using Dates
 
 mutable struct Model{A}
     agents::Vector{A}
-    params::Dict{Symbol, Float64}
+    params::Dict{Symbol, Real}
     date::Date
     lastday::Date
     schedule::Dict{Date, Dict{Int, Tuple{Function, Int}}}  # t => i => event, where i denotes the order of events

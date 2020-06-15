@@ -51,18 +51,18 @@ function reset_metrics!(model)
         metrics[k] = 0
     end
     for agent in model.agents
-        metrics[agent.status] += 1
+        metrics[agent.state.status] += 1
     end
 end
 
 "Remove the agent's old state from metrics"
 function unfit!(metrics::Dict{Symbol, Int}, agent)
-    metrics[agent.status] -= 1
+    metrics[agent.state.status] -= 1
 end
 
 "Add the agent's new state to metrics"
 function fit!(metrics::Dict{Symbol, Int}, agent)
-    metrics[agent.status] += 1
+    metrics[agent.state.status] += 1
 end
 
 ################################################################################
@@ -98,7 +98,7 @@ function apply_forcing!(forcing, model, dt)
         for j = 1:jmax
             id = rand(rg)
             agent = agents[id]
-            agent.status != :S && continue  # This person's status is already not Susceptible
+            agent.state.status != :S && continue  # This person's status is already not Susceptible
             if status == :E
                 execute_event!(to_E!, agent, model, dt, metrics)
             elseif status == :IA
@@ -144,7 +144,7 @@ end
 
 DiseaseProgression(age) = DiseaseProgression(:S, age, dummydate(), :X, dummydate(), dummydate(), dummydate(), dummydate(), dummydate(), 'n', false)
 
-function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float64}, cfg)
+function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Real}, cfg)
     # Set conveniences
     update_lb2dist!(params)
 
@@ -173,7 +173,7 @@ function reset_model!(model, cfg)
     model.date     = cfg.firstday
     for agent in model.agents  # Reset each agent's state
         state = agent.state
-        state.status = :S
+        state.status             = :S
         state.dt_last_transition = dummydate()
         state.most_severe_state  = :X
         state.infectious_start   = dummydate()
@@ -253,7 +253,7 @@ function apply_quarantine_policy!(agent::Person, model, dt)
         state.quarantined = true
         status = state.status
         if status == :IS || status == :H  # Symptomatic and not hospitalised
-            dt_exit_quarantine = agent.dt_last_transition + Day(policy.tested_positive.days)  # Days post onset of symptoms
+            dt_exit_quarantine = state.dt_last_transition + Day(policy.tested_positive.days)  # Days post onset of symptoms
             if dt_exit_quarantine <= dt
                 state.quarantined = false
             else
@@ -316,7 +316,7 @@ function to_IA!(agent::Person, model, dt)
     days_to_end_incubation   = (state.incubation_end - dt).value
     days_infectious          = max(days_to_end_incubation + 1, dur_infectious(model.params))  # Ensures patient is still infectious after incubation period
     state.infectious_end     = dt + Day(days_infectious)
-    if agent.most_severe_state == :IA
+    if state.most_severe_state == :IA
         schedule!(agent.id, state.infectious_end, to_R!, model)   # Person remains IA and recovers upon exiting the infectious period
     else
         schedule!(agent.id, state.incubation_end, to_IS!, model)  # Person becomes symptomatic after the incubation period
@@ -414,7 +414,7 @@ function to_W!(agent::Person, model, dt)
         if prevstate == :H
             schedule!(agent.id, dt + Day(dur_ward), to_ICU!, model)
         else  # prevstate == :ICU
-            schedule!(agent.id, agent.symptoms_end, to_R!, model)
+            schedule!(agent.id, state.symptoms_end, to_R!, model)
         end
     else  # most_severe_state == :D   # Path is: Home->Ward->ICU->Vent->deceased
         dur_ward = round(Int, 0.3 * dur_symptomatic)   # Split dur_symptomatic: 20% Home, 30% Ward, 30% ICU, 20% Ventilator
@@ -573,94 +573,5 @@ function draw_most_severe_state(age)
 end
 
 p_infect(params) = params[:p_infect]  # Pr(Person infects contact | Person makes contact with contact)
-
-################################################################################
-# Utils
-
-function get_contactlist(agent::Person, network::Symbol, params)
-    agentid   = agent.id
-    ncontacts = 0
-    if network == :household
-        ncontacts = get_household_contactids!(households[agent.i_household], agentid)
-    elseif network == :school
-        ncontacts = isnothing(agent.school) ? 0 : get_school_contactids!(agent.school)
-    elseif network == :workplace
-        if !isnothing(agent.ij_workplace)
-            i, j = agent.ij_workplace
-            ncontacts = get_community_contactids!(workplaces[i], j, Int(params[:n_workplace_contacts]), agentid)
-        end
-    elseif network == :community
-        ncontacts = get_community_contactids!(communitycontacts, agent.i_community, Int(params[:n_community_contacts]), agentid)
-    elseif network == :social
-        ncontacts = get_community_contactids!(socialcontacts, agent.i_social, Int(params[:n_social_contacts]), agentid)
-    end
-    ncontacts
-end
-
-function get_household_contactids!(household, agentid)
-    j = 0
-    flds = (:adults, :children)
-    for fld in flds
-        contactlist = getfield(household, fld)
-        for id in contactlist
-            id == agentid && continue
-            j += 1
-            contactids[j] = id
-        end
-    end
-    j
-end
-
-function get_school_contactids!(contactlist::Vector{Int})
-    ncontacts = length(contactlist)
-    for j = 1:ncontacts
-        contactids[j] = contactlist[j]
-    end
-    ncontacts
-end
-
-"""
-Modified: contactids.
-
-Populate contactids (global) with the agent's contact IDs and return the number of contacts j.
-I.e., contactids[1:j] is the required contact list.
-"""
-function get_community_contactids!(community::Vector{Int}, i_agent::Int, ncontacts_per_person::Int, agentid::Int)
-    i_agent == 0 && return 0
-    j = 0  # Index of contactids
-    npeople = length(community)
-    ncontacts_per_person = min(npeople - 1, ncontacts_per_person)
-    halfn   = div(ncontacts_per_person, 2)
-    i1 = rem(i_agent - halfn + npeople, npeople)
-    i1 = i1 == 0 ? npeople : i1
-    i2 = rem(i_agent + halfn, npeople)
-    i2 = i2 == 0 ? npeople : i2
-    if i1 < i2
-        for i = i1:i2
-            i == i_agent && continue
-            j += 1
-            contactids[j] = community[i]
-        end
-    elseif i1 > i2
-        for i = i1:npeople
-            i == i_agent && continue
-            j += 1
-            contactids[j] = community[i]
-        end
-        for i = 1:i2
-            i == i_agent && continue
-            j += 1
-            contactids[j] = community[i]
-        end
-    end
-    if isodd(ncontacts_per_person)
-        i  = rem(i_agent + div(npeople, 2), npeople)
-        i  = i == 0 ? npeople : i
-        i == i_agent && return j
-        j += 1
-        contactids[j] = community[i]
-    end
-    j
-end
 
 end

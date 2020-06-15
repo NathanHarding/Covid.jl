@@ -24,7 +24,7 @@ function runmodel(configfile::String)
     outfile = joinpath(cfg.datadir, "output", "metrics.csv")
 
     @info "$(now()) Initialising model"
-    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(indata["params"].name, indata["params"].value))
+    params = construct_params(indata["params"])
     model  = init_model(indata, params, cfg)
 
     # Run model
@@ -58,6 +58,15 @@ function import_data(datadir::String, tablename2datafile::Dict{String, String})
     for (tablename, datafile) in tablename2datafile
         filename = joinpath(datadir, "input", datafile)
         result[tablename] = DataFrame(CSV.File(filename))
+    end
+    result
+end
+
+function construct_params(params::DataFrame)
+    result = Dict{Symbol, Real}()
+    for (k, v) in zip(params.name, params.value)
+        val = round(Int, v) == v ? round(Int, v) : v
+        result[Symbol(k)] = val
     end
     result
 end
