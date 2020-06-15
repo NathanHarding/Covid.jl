@@ -144,6 +144,20 @@ end
 
 DiseaseProgression(age) = DiseaseProgression(:S, age, dummydate(), :X, dummydate(), dummydate(), dummydate(), dummydate(), dummydate(), 'n', false)
 
+function reset_state!(state::DiseaseProgression)
+    date0 = dummydate()
+    state.status             = :S
+    state.dt_last_transition = date0
+    state.most_severe_state  = :X
+    state.infectious_start   = date0
+    state.infectious_end     = date0
+    state.incubation_end     = date0
+    state.symptoms_end       = date0
+    state.last_test_date     = date0
+    state.last_test_result   = 'n'
+    state.quarantined        = false
+end
+
 function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Real}, cfg)
     # Set conveniences
     update_lb2dist!(params)
@@ -171,18 +185,9 @@ end
 function reset_model!(model, cfg)
     model.schedule = init_schedule(cfg.firstday, cfg.lastday)  # Empty the schedule
     model.date     = cfg.firstday
-    for agent in model.agents  # Reset each agent's state
-        state = agent.state
-        state.status             = :S
-        state.dt_last_transition = dummydate()
-        state.most_severe_state  = :X
-        state.infectious_start   = dummydate()
-        state.infectious_end     = dummydate()
-        state.incubation_end     = dummydate()
-        state.symptoms_end       = dummydate()
-        state.last_test_date     = dummydate()
-        state.last_test_result   = 'n'
-        state.quarantined        = false
+    agents = model.agents
+    for agent in agents
+        reset_state!(agent.state)
     end
 end
 
