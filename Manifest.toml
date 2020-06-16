@@ -89,7 +89,7 @@ uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[Demographics]]
 deps = ["CSV", "DataFrames", "Dates", "Distributions", "LightGraphs", "Logging", "Random"]
-git-tree-sha1 = "b3db7528dcb4212136a239e075ea508645eb81c1"
+git-tree-sha1 = "e8bdf0aefee2ad165c473c58261c1bf4c6ff7681"
 repo-rev = "master"
 repo-url = "https://github.com/JockLawrie/Demographics.jl"
 uuid = "ce7d0591-943f-4b9f-ac68-e93022213889"

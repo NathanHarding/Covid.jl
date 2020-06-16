@@ -1,16 +1,17 @@
 module core
 
-export Model, AbstractAgent,  # Types
+export Model,
        init_schedule, init_output, reset_output!,
        schedule!, execute_event!, execute_events!, metrics_to_output!,
-       update_struct!  # Utils
+       update_struct!
 
 using DataFrames
 using Dates
+using Demographics
 
-mutable struct Model{A}
+mutable struct Model{A <: Person}
     agents::Vector{A}
-    params::Dict{Symbol, Real}
+    params::Dict{Symbol, Float64}
     date::Date
     lastday::Date
     schedule::Dict{Date, Dict{Int, Tuple{Function, Int}}}  # t => i => event, where i denotes the order of events
@@ -69,8 +70,8 @@ function metrics_to_output!(metrics, output, dt::Date)
 end
 
 # To be extended by model-specific methods
-unfit!(metrics, agents)  = nothing
-fit!(metrics, agents)    = nothing
+unfit!(metrics, agent)  = nothing
+fit!(metrics, agent)    = nothing
 
 ################################################################################
 # Utils

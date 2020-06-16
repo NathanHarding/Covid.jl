@@ -26,6 +26,39 @@ include("config.jl")
 using .config
 
 ################################################################################
+# Agent state
+
+mutable struct DiseaseProgression
+    status::Symbol  # S, E, IA, IS, H, W, ICU, V, R, D
+    age::Int
+    dt_last_transition::Date  # Date of most recent status change
+    most_severe_state::Symbol
+    infectious_start::Date
+    infectious_end::Date
+    incubation_end::Date
+    symptoms_end::Date
+    last_test_date::Date
+    last_test_result::Char  # 'p' = positive, 'n' = negative
+    quarantined::Bool
+end
+
+DiseaseProgression(age) = DiseaseProgression(:S, age, dummydate(), :X, dummydate(), dummydate(), dummydate(), dummydate(), dummydate(), 'n', false)
+
+function reset_state!(state::DiseaseProgression)
+    date0 = dummydate()
+    state.status             = :S
+    state.dt_last_transition = date0
+    state.most_severe_state  = :X
+    state.infectious_start   = date0
+    state.infectious_end     = date0
+    state.incubation_end     = date0
+    state.symptoms_end       = date0
+    state.last_test_date     = date0
+    state.last_test_result   = 'n'
+    state.quarantined        = false
+end
+
+################################################################################
 # Policies
 
 const active_distancing_policy = DistancingPolicy(0.0, 0.0, 0.0, 0.0, 0.0)
@@ -51,8 +84,13 @@ function reset_metrics!(model)
         metrics[k] = 0
     end
     for agent in model.agents
-        metrics[agent.state.status] += 1
+        state = agent.state
+        reset_metrics!(state)
     end
+end
+
+function reset_metrics!(state::DiseaseProgression)
+    metrics[state.status] += 1
 end
 
 "Remove the agent's old state from metrics"
@@ -128,44 +166,14 @@ end
 ################################################################################
 # The model
 
-mutable struct DiseaseProgression
-    status::Symbol  # S, E, IA, IS, H, W, ICU, V, R, D
-    age::Int
-    dt_last_transition::Date  # Date of most recent status change
-    most_severe_state::Symbol
-    infectious_start::Date
-    infectious_end::Date
-    incubation_end::Date
-    symptoms_end::Date
-    last_test_date::Date
-    last_test_result::Char  # 'p' = positive, 'n' = negative
-    quarantined::Bool
-end
-
-DiseaseProgression(age) = DiseaseProgression(:S, age, dummydate(), :X, dummydate(), dummydate(), dummydate(), dummydate(), dummydate(), 'n', false)
-
-function reset_state!(state::DiseaseProgression)
-    date0 = dummydate()
-    state.status             = :S
-    state.dt_last_transition = date0
-    state.most_severe_state  = :X
-    state.infectious_start   = date0
-    state.infectious_end     = date0
-    state.incubation_end     = date0
-    state.symptoms_end       = date0
-    state.last_test_date     = date0
-    state.last_test_result   = 'n'
-    state.quarantined        = false
-end
-
-function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Real}, cfg)
+function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float64}, cfg)
     # Set conveniences
     update_lb2dist!(params)
 
     # Init model
     agedist  = indata["age_distribution"]
     npeople  = round(Int, sum(agedist.count))
-    agents   = Vector{Person}(undef, npeople)
+    agents   = Vector{Person{Char, DiseaseProgression}}(undef, npeople)
     schedule = init_schedule(cfg.firstday, cfg.lastday)
     model    = Model(agents, params, cfg.firstday, cfg.lastday, schedule)
 
@@ -174,7 +182,7 @@ function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Real},
     for id = 1:npeople
         age        = agedist[rand(d_age), :age]
         birthdate  = today() - Year(age)
-        agents[id] = Person(id, birthdate, 'o', 'x', DiseaseProgression(age))
+        agents[id] = Person{Char, DiseaseProgression}(id, birthdate, 'o', 'x', DiseaseProgression(age))
     end
 
     # Sort agents and populate contacts
@@ -194,7 +202,7 @@ end
 ################################################################################
 # Test-trace-quarantine events
 
-function test_for_covid!(agent::Person, model, dt)
+function test_for_covid!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status == :D            && return  # Do not test deceased people
     state.last_test_result == 'p' && return  # Patient is already a known and active case
@@ -204,7 +212,7 @@ function test_for_covid!(agent::Person, model, dt)
     schedule!(agent.id, dt + Day(2), get_test_result!, model)  # Test result available 2 days after test
 end
 
-function get_test_result!(agent::Person, model, dt)
+function get_test_result!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.quarantined = false
     if (state.status == :S || state.status == :R)
@@ -218,7 +226,7 @@ function get_test_result!(agent::Person, model, dt)
     end
 end
 
-function apply_tracing_policy!(agent::Person, model, dt)
+function apply_tracing_policy!(agent::Person{Char, DiseaseProgression}, model, dt)
     policy = active_tracing_policy
     params = model.params
     ncontacts = get_contactlist(agent, :household, params)
@@ -250,7 +258,7 @@ function trace_and_test_contacts!(ncontacts, model, dt, delay, p_asymptomatic, p
 end
 
 "Apply active_quarantine_policy to the agent (who just tested positive) and his/her contacts."
-function apply_quarantine_policy!(agent::Person, model, dt)
+function apply_quarantine_policy!(agent::Person{Char, DiseaseProgression}, model, dt)
     # Quarantine the newly positive agent
     policy = active_quarantine_policy
     if rand() <= policy.tested_positive.compliance
@@ -292,7 +300,7 @@ function apply_quarantine_policy!(agent::Person, model, dt)
     end
 end
 
-function exit_quarantine!(agent::Person, model, dt)
+function exit_quarantine!(agent::Person{Char, DiseaseProgression}, model, dt)
     status = agent.state.status
     agent.state.quarantined = (status == :W || status == :ICU || status == :V)  # Remain quarantined if hospitalised, else exit quarantine
 end
@@ -301,7 +309,7 @@ end
 # State transition events
 
 "Start of the incubation period."
-function to_E!(agent::Person, model, dt)
+function to_E!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status = :E
     state.dt_last_transition = dt
@@ -313,7 +321,7 @@ function to_E!(agent::Person, model, dt)
 end
 
 "Start of the infectious period, 1-2 days before the end of the incubation period."
-function to_IA!(agent::Person, model, dt)
+function to_IA!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status = :IA
     state.dt_last_transition = dt
@@ -330,7 +338,7 @@ function to_IA!(agent::Person, model, dt)
 end
 
 "End of the incubation period. Start symptomatic period."
-function to_IS!(agent::Person, model, dt)
+function to_IS!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status = :IS
     state.dt_last_transition = dt
@@ -372,7 +380,7 @@ function to_IS!(agent::Person, model, dt)
 end
 
 "End of the infectious period."
-function to_H!(agent::Person, model, dt)
+function to_H!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status = :H
     state.dt_last_transition = dt
@@ -396,7 +404,7 @@ function to_H!(agent::Person, model, dt)
     end
 end
 
-function to_W!(agent::Person, model, dt)
+function to_W!(agent::Person{Char, DiseaseProgression}, model, dt)
     state        = agent.state
     prevstate    = state.status
     state.status = :W
@@ -427,7 +435,7 @@ function to_W!(agent::Person, model, dt)
     end
 end
 
-function to_ICU!(agent::Person, model, dt)
+function to_ICU!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     prevstate    = state.status
     state.status = :ICU
@@ -450,7 +458,7 @@ function to_ICU!(agent::Person, model, dt)
     end
 end
 
-function to_V!(agent::Person, model, dt)
+function to_V!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status = :V
     state.dt_last_transition = dt
@@ -464,7 +472,7 @@ function to_V!(agent::Person, model, dt)
     end
 end
 
-function to_R!(agent::Person, model, dt)
+function to_R!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     state.status = :R
     state.dt_last_transition = dt
@@ -473,12 +481,12 @@ function to_R!(agent::Person, model, dt)
     state.quarantined = false
 end
 
-to_D!(agent::Person, model, dt) = agent.state.status = :D
+to_D!(agent::Person{Char, DiseaseProgression}, model, dt) = agent.state.status = :D
 
 ################################################################################
 # Infect contacts event
 
-function infect_contacts!(agent::Person, model, dt)
+function infect_contacts!(agent::Person{Char, DiseaseProgression}, model, dt)
     state = agent.state
     !(dt >= state.infectious_start && dt <= state.infectious_end) && return  # Person is not infectious
     state.quarantined && return  # A quarantined person cannot infect anyone
@@ -505,14 +513,15 @@ end
 function infect_contactlist!(ncontacts, pr_contact, pr_infect, agents, model, dt, n_susceptible_contacts)
     for i = 1:ncontacts
         contactid = contactids[i]
-        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, agents[contactid], model, dt, n_susceptible_contacts)
+        contact   = agents[contactid]
+        n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, contact, model, dt, n_susceptible_contacts)
     end
     n_susceptible_contacts
 end
 
 function infect_contact!(pr_contact, pr_infect, contact, model, dt, n_susceptible_contacts)
     state = contact.state
-    if !(state.quarantined) && pr_contact > 0.0 && rand() <= pr_contact         # Contact between agent and contact occurs
+    if !(state.quarantined) && pr_contact > 0.0 && rand() <= pr_contact  # Contact between agent and contact occurs
         if state.status == :S && rand() <= pr_infect  # The agent infects the contact
             execute_event!(to_E!, contact, model, dt, metrics)
         #elseif state.status == :R && rand() <= state.p_reinfection
