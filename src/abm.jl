@@ -84,13 +84,8 @@ function reset_metrics!(model)
         metrics[k] = 0
     end
     for agent in model.agents
-        state = agent.state
-        reset_metrics!(state)
+        metrics[agent.state.status] += 1
     end
-end
-
-function reset_metrics!(state::DiseaseProgression)
-    metrics[state.status] += 1
 end
 
 "Remove the agent's old state from metrics"
