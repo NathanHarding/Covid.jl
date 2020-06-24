@@ -181,7 +181,7 @@ function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float6
     end
 
     # Sort agents and populate contacts
-    populate_contacts!(agents, params, indata, today())
+    Demographics.populate_contacts!(agents, params, indata, today())
     model
 end
 

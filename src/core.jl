@@ -7,9 +7,8 @@ export Model,
 
 using DataFrames
 using Dates
-using Demographics
 
-mutable struct Model{A <: Person}
+mutable struct Model{A}
     agents::Vector{A}
     params::Dict{Symbol, Float64}
     date::Date
