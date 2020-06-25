@@ -3,6 +3,7 @@ module config
 export Config, DistancingPolicy, TestingPolicy, TracingPolicy, QuarantinePolicy
 
 using Dates
+using Demographics
 using YAML
 
 ################################################################################
@@ -140,26 +141,28 @@ end
 
 ################################################################################
 struct Config
-    datadir::String
-    input_data::Dict{String, String}  # tablename => datafile
-    forcing::Dict{Date, Dict{Symbol, Int}}  # date => {status => count(status)}
+    output_directory::String
+    demographics::Demographics.Config
     firstday::Date  # Simulation starts at 12am
     lastday::Date   # Simulation finishes at 12am
     nruns::Int
+    paramsfile::String
+    forcing::Dict{Date, Dict{Symbol, Int}}            # date => {status => count(status)}
     t2distancingpolicy::Dict{Date, DistancingPolicy}  # t => distancing_policy
     t2testingpolicy::Dict{Date, TestingPolicy}        # t => testing_policy
     t2tracingpolicy::Dict{Date, TracingPolicy}        # t => tracing_policy
     t2quarantinepolicy::Dict{Date, QuarantinePolicy}  # t => quarantine_policy
 
-    function Config(datadir, input_data, forcing, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
-        if isempty(datadir)
-            datadir = normpath(joinpath(@__DIR__, "..", "data"))
+    function Config(outdir, cfg_demographics, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        !isdir(dirname(outdir)) && error("The directory containing the output directory does not exist: $(dirname(outdir))")
+        if !isdir(outdir)
+            mkdir(outdir)
         end
-        !isdir(datadir) && error("The data directory does not exist: $(datadir)")
-        for (tablename, datafile) in input_data
-            filename = joinpath(datadir, "input", datafile)
-            !isfile(filename) && error("Input data file does not exist: $(filename)")
-        end
+        firstday > lastday && error("First day is after last day")
+        nruns < 1 && error("nruns is less than 1")
+        paramsfile_attempt = constructpath(paramsfile, '/')
+        paramsfile = isfile(paramsfile_attempt) ? paramsfile_attempt : constructpath(joinpath(pwd(), paramsfile), '/')
+        !isfile(paramsfile) && error("The file containing model parameters does not exist: $(paramsfile)")
         registered_statuses = Set([:S, :E, :IA, :IS, :W, :ICU, :V, :R, :D])
         for (dt, status2n) in forcing
             for (status, n) in status2n
@@ -167,23 +170,32 @@ struct Config
                 n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
             end
         end
-        firstday > lastday && error("First day is after last day")
-        nruns < 1 && error("nruns is less than 1")
-        new(datadir, input_data, forcing, firstday, lastday, nruns, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        new(outdir, cfg_demographics, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
     end
 end
 
 Config(configfile::String) = Config(YAML.load_file(configfile))
 
 function Config(d::Dict)
-    forcing            = construct_forcing(d["forcing"])
+    outdir_attempt     = constructpath(d["output_directory"], '/')
+    outdir             = isdir(outdir_attempt) ? outdir_attempt : constructpath(joinpath(pwd(), d["output_directory"]), '/')
+    cfg_demographics   = Demographics.Config(d["demographics"])
     firstday           = Date(d["firstday"])
     lastday            = Date(d["lastday"])
+    nruns              = d["nruns"]
+    paramsfile         = d["params"]
+    forcing            = construct_forcing(d["forcing"])
     t2distancingpolicy = isnothing(d["distancing_policy"]) ? Dict{Date, DistancingPolicy}() : Dict(Date(dt) => DistancingPolicy(policy) for (dt, policy) in d["distancing_policy"])
     t2testingpolicy    = isnothing(d["testing_policy"])    ? Dict{Date, TestingPolicy}()    : Dict(Date(dt) => TestingPolicy(policy)    for (dt, policy) in d["testing_policy"])
     t2tracingpolicy    = isnothing(d["tracing_policy"])    ? Dict{Date, TracingPolicy}()    : Dict(Date(dt) => TracingPolicy(policy)    for (dt, policy) in d["tracing_policy"])
     t2quarantinepolicy = isnothing(d["quarantine_policy"]) ? Dict{Date, QuarantinePolicy}() : Dict(Date(dt) => QuarantinePolicy(policy) for (dt, policy) in d["quarantine_policy"])
-    Config(d["datadir"], d["input_data"], forcing, firstday, lastday, d["nruns"], t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    Config(outdir, cfg_demographics, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+end
+
+"Constructs a valid file or directory path by ensuring the correct separator for the operating system."
+function constructpath(s::String, sep::Char)
+    parts = split(s, sep)
+    normpath(joinpath(parts...))
 end
 
 function construct_forcing(d::Dict)

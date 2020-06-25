@@ -16,16 +16,13 @@ function runmodel(configfile::String)
     @info "$(now()) Configuring model"
     cfg = Config(configfile)
 
-    @info "$(now()) Importing input data"
-    indata = import_data(cfg.datadir, cfg.input_data)
-
     @info "$(now()) Initialising output data"
     output  = init_output(metrics, cfg.firstday, cfg.lastday)  # 1 row for each date
-    outfile = joinpath(cfg.datadir, "output", "metrics.csv")
+    outfile = joinpath(cfg.output_directory, "metrics.csv")
 
     @info "$(now()) Initialising model"
-    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(indata["params"].name, indata["params"].value))
-    model  = init_model(indata, params, cfg)
+    params = construct_params(cfg.paramsfile, cfg.demographics.params)
+    model  = init_model(params, cfg)
 
     # Run model
     firstday = cfg.firstday
@@ -53,13 +50,10 @@ end
 ################################################################################
 # Utils
 
-function import_data(datadir::String, tablename2datafile::Dict{String, String})
-    result = Dict{String, DataFrame}()
-    for (tablename, datafile) in tablename2datafile
-        filename = joinpath(datadir, "input", datafile)
-        result[tablename] = DataFrame(CSV.File(filename))
-    end
-    result
+function construct_params(paramsfile::String, demographics_params::Dict{Symbol, Float64})
+    tbl    = DataFrame(CSV.File(paramsfile))
+    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
+    merge!(params, demographics_params)  # Merge d2 into d1 and return d1 (d1 is enlarged, d2 remains unchanged)
 end
 
 end

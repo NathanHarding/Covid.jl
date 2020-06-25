@@ -161,28 +161,26 @@ end
 ################################################################################
 # The model
 
-function init_model(indata::Dict{String, DataFrame}, params::Dict{Symbol, Float64}, cfg)
+function init_model(params::Dict{Symbol, Float64}, cfg)
     # Set conveniences
     update_lb2dist!(params)
 
-    # Init model
-    agedist  = indata["age_distribution"]
-    npeople  = round(Int, sum(agedist.count))
-    agents   = Vector{Person{Char, DiseaseProgression}}(undef, npeople)
-    schedule = init_schedule(cfg.firstday, cfg.lastday)
-    model    = Model(agents, params, cfg.firstday, cfg.lastday, schedule)
-
-    # Construct people
-    d_age = Categorical(agedist.proportion)
+    # Construct people with state
+    people  = construct_population(cfg.demographics)
+    npeople = size(people, 1)
+    agents  = Vector{Person{Char, DiseaseProgression}}(undef, npeople)
+    dt      = today()
     for id = 1:npeople
-        age        = agedist[rand(d_age), :age]
-        birthdate  = today() - Year(age)
-        agents[id] = Person{Char, DiseaseProgression}(id, birthdate, 'o', 'x', DiseaseProgression(age))
+        person     = people[id]
+        age        = Demographics.age(person, dt, :year)
+        state      = DiseaseProgression(age)
+        agents[id] = Person{Char, DiseaseProgression}(person.id, person.birthdate, person.sex, person.address, state,
+                                                      person.i_household, person.school, person.ij_workplace, person.i_community, person.i_social)
     end
 
-    # Sort agents and populate contacts
-    Demographics.populate_contacts!(agents, params, indata, today())
-    model
+    # Init model
+    schedule = init_schedule(cfg.firstday, cfg.lastday)
+    Model(agents, params, cfg.firstday, cfg.lastday, schedule)
 end
 
 function reset_model!(model, cfg)
@@ -241,7 +239,7 @@ function trace_and_test_contacts!(ncontacts, model, dt, delay, p_asymptomatic, p
     p_asymptomatic == 0.0 && p_symptomatic == 0.0 && return
     agents = model.agents
     for i = 1:ncontacts
-        contactid = contactids[i]
+        contactid = getcontact(i)
         contact   = agents[contactid]
         status    = contact.state.status
         if status == :IS  # Symptomatic and not hospitalised
@@ -282,7 +280,7 @@ function apply_quarantine_policy!(agent::Person{Char, DiseaseProgression}, model
         dur == 0 && continue
         ncontacts = get_contactlist(agent, contact_network, params)
         for i = 1:ncontacts
-            contactid = contactids[i]
+            contactid = getcontact(i)
             contact   = agents[contactid]
             state     = contact.state
             state.quarantined && continue  # Contact is already quarantined
@@ -507,7 +505,7 @@ end
 
 function infect_contactlist!(ncontacts, pr_contact, pr_infect, agents, model, dt, n_susceptible_contacts)
     for i = 1:ncontacts
-        contactid = contactids[i]
+        contactid = getcontact(i)
         contact   = agents[contactid]
         n_susceptible_contacts = infect_contact!(pr_contact, pr_infect, contact, model, dt, n_susceptible_contacts)
     end
