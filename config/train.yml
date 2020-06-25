@@ -19,7 +19,7 @@ demographics:
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am.
 lastday:  2021-01-01  # Simulation finishes at 12am
-nruns: 10
+nruns: 50
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
 forcing:
@@ -72,7 +72,7 @@ quarantine_policy:
 ################################################################################
 # Config specifically for training
 
-training_data: "training_data.csv"
+training_data: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
 
 solver_options:
     iterations: 40
@@ -82,6 +82,6 @@ solver_options:
 unknowns:
     params: p_infect
     distancing_policy:
-        2020-01-25: [household, school, workplace, community, social]
+        2020-01-18: [household, school, workplace, community, social]
     testing_policy:
-        2020-01-25: IS
+        2020-01-18: IS

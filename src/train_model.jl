@@ -19,7 +19,7 @@ function trainmodel(configfile::String)
     unknowns, n_unknowns = construct_unknowns(d["unknowns"])
 
     @info "$(now()) Preparing training data"
-    y = prepare_training_data(cfg.datadir, d)  # date => (colname1=val1, ...)
+    y = prepare_training_data(d)  # date => (colname1=val1, ...)
 
     @info "$(now()) Initialising model"
     params = construct_params(cfg.paramsfile, cfg.demographics.params)
@@ -35,9 +35,9 @@ function trainmodel(configfile::String)
     @info "$(now()) Extracting result"
     theta = result.minimizer
     theta_to_params_and_policies!(theta, unknowns, cfg, model.params)
-for x in theta
-    println("$(logit_to_prob(x))")
-end
+#for x in theta
+#    println("$(logit_to_prob(x))")
+#end
     write_theta(theta, unknowns, cfg, model.params)
     @info "$(now()) Finished"
 end
@@ -175,10 +175,13 @@ function lossfunc(theta::Vector{Float64}, y, model, cfg, metrics, unknowns)
         reset_metrics!(model)
         for date in firstday:Day(1):lastday
             model.date = date
-            loss += sq_error(y[date][:positives], metrics[:positives]) / denom  # System as of 12am on date
-            #loss += loglikelihood(y[date][:positives], metrics[:positives])  # System as of 12am on date
+            if haskey(y, date)
+                loss += sq_error(y[date][:positives], metrics[:positives]) / denom  # System as of 12am on date
+                #loss += loglikelihood(y[date][:positives], metrics[:positives])  # System as of 12am on date
+            end
             date == lastday && break
             update_policies!(cfg, date)
+            apply_forcing!(cfg.forcing, model, date)
             execute_events!(model.schedule[date], agents, model, date, metrics)
         end
     end
@@ -199,9 +202,15 @@ sq_error(y, yhat) = (y - yhat) ^ 2
 logit_to_prob(b) = 1.0 / (1.0 + exp(-b))
 prob_to_logit(p) = log(p / (1.0 - p))
 
+function construct_params(paramsfile::String, demographics_params::Dict{Symbol, Float64})
+    tbl    = DataFrame(CSV.File(paramsfile))
+    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
+    merge!(params, demographics_params)  # Merge d2 into d1 and return d1 (d1 is enlarged, d2 remains unchanged)
+end
+
 "Returns: Dict{Date, NamedTuple}.  date => (colname1=val1, ...)."
-function prepare_training_data(datadir, d)
-    y = DataFrame(CSV.File(joinpath(datadir, "input", d["training_data"])))  # Columns: date, newpositives, positives
+function prepare_training_data(d)
+    y = DataFrame(CSV.File(d["training_data"]))  # Columns: date, newpositives, positives
     sort!(y, (:date,))
     prevdate = nothing
     result   = nothing
@@ -233,7 +242,7 @@ function write_theta(theta, unknowns, cfg, params)
         row = (name=nm, value=p)
         push!(result, row)
     end
-    outfile = joinpath(cfg.datadir, "output", "trained_params.tsv")
+    outfile = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
 end
 
