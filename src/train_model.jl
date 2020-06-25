@@ -18,15 +18,12 @@ function trainmodel(configfile::String)
     cfg = Config(d)
     unknowns, n_unknowns = construct_unknowns(d["unknowns"])
 
-    @info "$(now()) Importing input data"
-    indata = import_data(cfg.datadir, cfg.input_data)
-
     @info "$(now()) Preparing training data"
     y = prepare_training_data(cfg.datadir, d)  # date => (colname1=val1, ...)
 
     @info "$(now()) Initialising model"
-    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(indata["params"].name, indata["params"].value))
-    model  = init_model(indata, params, cfg)
+    params = construct_params(cfg.paramsfile, cfg.demographics.params)
+    model  = init_model(params, cfg)
 
     @info "$(now()) Training model"
     theta0 = fill(0.0, n_unknowns)
@@ -201,15 +198,6 @@ sq_error(y, yhat) = (y - yhat) ^ 2
 
 logit_to_prob(b) = 1.0 / (1.0 + exp(-b))
 prob_to_logit(p) = log(p / (1.0 - p))
-
-function import_data(datadir::String, tablename2datafile::Dict{String, String})
-    result = Dict{String, DataFrame}()
-    for (tablename, datafile) in tablename2datafile
-        filename = joinpath(datadir, "input", datafile)
-        result[tablename] = DataFrame(CSV.File(filename))
-    end
-    result
-end
 
 "Returns: Dict{Date, NamedTuple}.  date => (colname1=val1, ...)."
 function prepare_training_data(datadir, d)
