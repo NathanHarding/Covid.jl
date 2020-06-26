@@ -20,7 +20,7 @@ function trainmodel(configfile::String)
     unknowns, n_unknowns = construct_unknowns(d["unknowns"])
 
     @info "$(now()) Preparing training data"
-    y = prepare_training_data(d)  # date => (colname1=val1, ...)
+    y = prepare_training_data(d)
 
     @info "$(now()) Initialising model"
     params = construct_params(cfg.paramsfile, cfg.demographics.params)
@@ -28,7 +28,7 @@ function trainmodel(configfile::String)
 
     @info "$(now()) Training model"
     params = (model, cfg, metrics, unknowns)  # 2nd argument of onerun
-    prior  = Factored([Uniform(0.0, 0.1) for i = 1:n_unknowns]...)
+    prior  = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
     loss   = mse
     plan   = ABCplan(prior, onerun, y, mse; params=params)
     res, delta, converged = ABCDE(plan, 0.02; nparticles=10, generations=10, verbose=true)
@@ -170,16 +170,13 @@ function onerun(theta::T1, params::T2) where {T1 <: NTuple, T2 <: Tuple}
     firstday = cfg.firstday
     lastday  = cfg.lastday
     agents   = model.agents
-    ndays    = (lastday - firstday).value + 1
-    denom    = ndays * nruns
     theta_to_params_and_policies!(theta, unknowns, cfg, model.params)
     reset_model!(model, cfg)
     reset_metrics!(model)
     prev_npositives = 0
     daterange = firstday:Day(1):lastday
     result    = fill(0, length(daterange) - 1)
-    i = 0
-    for date in daterange
+    for (i, date) in enumerate(daterange)
         model.date = date
         date == lastday && break
         update_policies!(cfg, date)
@@ -187,7 +184,6 @@ function onerun(theta::T1, params::T2) where {T1 <: NTuple, T2 <: Tuple}
         execute_events!(model.schedule[date], agents, model, date, metrics)
 
         # Collect result
-        i += 1
         npositives = metrics[:positives]
         result[i]  = npositives - prev_npositives
         prev_npositives = npositives
@@ -240,12 +236,12 @@ function prepare_training_data(d)
     result
 end
 
-function construct_result(res, n_unknowns)  # Vector{NameTuple}
-    result = NamedTuple{(:name, :p025, :p50, :p975), Tuple{String, Float64, Float64, Float64}}[]
+function construct_result(res, n_unknowns)
+    result = NamedTuple{(:name, :p025, :p25, :p50, :p75, :p975), Tuple{String, Float64, Float64, Float64, Float64, Float64}}[]
     for i = 1:n_unknowns
         p   = getindex.(res, i)
         nm  = "x$(i)"  # TODO: Fix
-        row = (name=nm, p025=quantile(p, 0.025), p50=quantile(p, 0.5), p975=quantile(p, 0.975))
+        row = (name=nm, p025=quantile(p, 0.025), p25=quantile(p, 0.25), p50=quantile(p, 0.5), p75=quantile(p, 0.75), p975=quantile(p, 0.975))
         push!(result, row)
     end
     result
