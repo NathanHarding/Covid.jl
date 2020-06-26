@@ -29,8 +29,8 @@ function trainmodel(configfile::String)
     @info "$(now()) Training model"
     params  = (model, cfg, metrics, unknowns)  # 2nd argument of onerun
     prior   = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
-    loss    = mse
-    plan    = ABCplan(prior, onerun, y, mse; params=params)
+    loss    = rmse
+    plan    = ABCplan(prior, onerun, y, loss; params=params)
     etarget = d["solver_options"]["etarget"]
     delete!(d["solver_options"], "etarget")
     opts    = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["solver_options"])
@@ -201,13 +201,13 @@ function loglikelihood(y, yhat)
     result / n
 end
 
-function mse(y, yhat)
+function rmse(y, yhat)
     n = size(y, 1)
     result = 0.0
     for i = 1:n
         result += abs2(y[i] - yhat[i])
     end
-    result / n
+    sqrt(result / n)
 end
 
 ################################################################################

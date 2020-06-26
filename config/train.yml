@@ -18,7 +18,7 @@ demographics:
 
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am.
-lastday:  2021-01-01  # Simulation finishes at 12am
+lastday:  2020-06-01  # Simulation finishes at 12am
 nruns: 50
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
@@ -75,9 +75,9 @@ quarantine_policy:
 training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
 
 solver_options:
-    etarget: 0.02
-    nparticles: 10
-    generations: 10
+    etarget: 5.0
+    nparticles: 100
+    generations: 50
     verbose: true
 
 # Unknowns to be estimated via training. Initial values are supplied in the config.
