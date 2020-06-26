@@ -27,20 +27,17 @@ function trainmodel(configfile::String)
     model  = init_model(params, cfg)
 
     @info "$(now()) Training model"
-    params = (model, cfg, metrics, unknowns)  # 2nd argument of onerun
-    prior  = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
-    loss   = mse
-    plan   = ABCplan(prior, onerun, y, mse; params=params)
-    res, delta, converged = ABCDE(plan, 0.02; nparticles=10, generations=10, verbose=true)
+    params  = (model, cfg, metrics, unknowns)  # 2nd argument of onerun
+    prior   = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
+    loss    = mse
+    plan    = ABCplan(prior, onerun, y, mse; params=params)
+    etarget = d["solver_options"]["etarget"]
+    delete!(d["solver_options"], "etarget")
+    opts    = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["solver_options"])
+    res, delta, converged = ABCDE(plan, etarget; opts...)
 
     @info "$(now()) Extracting result"
-    result = construct_result(res, n_unknowns)  # Vector{NameTuple}
-
-println("Converged = $(converged)")
-for row in result
-    println(row)
-end
-
+    result  = construct_result(res, n_unknowns)  # Vector{NameTuple}
     outfile = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
     @info "$(now()) Finished"

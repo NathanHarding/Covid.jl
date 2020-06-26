@@ -72,11 +72,13 @@ quarantine_policy:
 ################################################################################
 # Config specifically for training
 
-training_data: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
+training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
 
 solver_options:
-    iterations: 40
-    show_trace: true
+    etarget: 0.02
+    nparticles: 10
+    generations: 10
+    verbose: true
 
 # Unknowns to be estimated via training. Initial values are supplied in the config.
 unknowns:
