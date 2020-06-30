@@ -193,14 +193,14 @@ end
 ################################################################################
 # Loss function
 
-function loglikelihood(y, yhat)
+function negative_loglikelihood(y, yhat)
     n = size(y, 1)
     result = 0.0
     for i = 1:n
         yhat[i] < 0.01 && continue
         result += y[i] * log(yhat[i]) - yhat[i]  # LL(Y ~ Poisson(yhat)) without constant term
     end
-    result / n
+    -result / n
 end
 
 function rmse(y, yhat)
