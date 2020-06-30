@@ -5,6 +5,7 @@ export trainmodel
 using CSV
 using DataFrames
 using Dates
+using Distributions  # quantile
 using Logging
 using Optim
 using YAML
@@ -35,9 +36,6 @@ function trainmodel(configfile::String)
     @info "$(now()) Extracting result"
     theta = result.minimizer
     theta_to_params_and_policies!(theta, unknowns, cfg, model.params)
-#for x in theta
-#    println("$(logit_to_prob(x))")
-#end
     write_theta(theta, unknowns, cfg, model.params)
     @info "$(now()) Finished"
 end
@@ -162,39 +160,60 @@ end
 # Loss function
 
 function lossfunc(theta::Vector{Float64}, y, model, cfg, metrics, unknowns)
-    loss = 0.0
-    nruns    = cfg.nruns
-    firstday = cfg.firstday
-    lastday  = cfg.lastday
-    agents   = model.agents
-    ndays    = (lastday - firstday).value + 1
-    denom    = ndays * nruns
     theta_to_params_and_policies!(theta, unknowns, cfg, model.params)
-    for r in 1:nruns
+    arr  = manyruns(model, cfg, metrics)  # arr[t, r] = output at time t for run r
+    yhat = [quantile(view(arr, t, :), 0.5) for t = 1:size(arr, 1)]  # Median of simulated values at each time step
+    #negative_loglikelihood(y, yhat)
+    rmse(y, yhat)
+end
+
+function negative_loglikelihood(y, yhat)
+    n = size(y, 1)
+    result = 0.0
+    for i = 1:n
+        yhat[i] < 0.01 && continue
+        result += y[i] * log(yhat[i]) - yhat[i]  # LL(Y ~ Poisson(yhat)) without constant term
+    end
+    -result / n
+end
+
+function rmse(y, yhat)
+    n = size(y, 1)
+    result = 0.0
+    for i = 1:n
+        result += abs2(y[i] - yhat[i])
+    end
+    sqrt(result / n)
+end
+
+################################################################################
+# Model run
+
+function manyruns(model, cfg, metrics)
+    firstday  = cfg.firstday
+    lastday   = cfg.lastday
+    agents    = model.agents
+    daterange = firstday:Day(1):lastday
+    result    = fill(0, length(daterange) - 1, cfg.nruns)  # Each column contains the time seris of 1 run
+    for r in 1:cfg.nruns
+        prev_npositives = 0  # Cumulative number of positives as of 11.59pm on date
         reset_model!(model, cfg)
         reset_metrics!(model)
-        for date in firstday:Day(1):lastday
+        for (i, date) in enumerate(daterange)
             model.date = date
-            if haskey(y, date)
-                loss += sq_error(y[date][:positives], metrics[:positives]) / denom  # System as of 12am on date
-                #loss += loglikelihood(y[date][:positives], metrics[:positives])  # System as of 12am on date
-            end
             date == lastday && break
             update_policies!(cfg, date)
             apply_forcing!(cfg.forcing, model, date)
             execute_events!(model.schedule[date], agents, model, date, metrics)
+
+            # Collect result
+            cumulative_npositives = metrics[:positives]
+            result[i, r]    = cumulative_npositives - prev_npositives
+            prev_npositives = cumulative_npositives
         end
     end
-    #-loss / denom
-    loss <= 1.0 ? 0.0 : log(loss)
+    result
 end
-
-function loglikelihood(y, yhat)
-    yhat <= 0.01 && return 0.0
-    y * log(yhat) - yhat  # LL(Y ~ Poisson(yhat)) without constant term
-end
-
-sq_error(y, yhat) = (y - yhat) ^ 2
 
 ################################################################################
 # Utils
@@ -208,27 +227,16 @@ function construct_params(paramsfile::String, demographics_params::Dict{Symbol, 
     merge!(params, demographics_params)  # Merge d2 into d1 and return d1 (d1 is enlarged, d2 remains unchanged)
 end
 
-"Returns: Dict{Date, NamedTuple}.  date => (colname1=val1, ...)."
+"Returns: Vector{Int} containing the number of new cases"
 function prepare_training_data(d)
-    y = DataFrame(CSV.File(d["training_data"]))  # Columns: date, newpositives, positives
-    sort!(y, (:date,))
-    prevdate = nothing
-    result   = nothing
-    n = size(y, 1)
-    for i = 1:n
-        dt = Date(y[i, :date])
-        nt = copy(y[i, :])  # Row as NamedTuple
-        if isnothing(prevdate)
-            T = typeof(nt)
-            result     = Dict{Date, T}()
-            result[dt] = nt
-            prevdate   = dt
-        else
-            for t in (prevdate + Day(1)):Day(1):(dt - Day(1))
-                result[t] = result[prevdate]  # Only valid for cumulative data
-            end
-            result[dt] = nt
-        end
+    data      = DataFrame(CSV.File(d["training_data"]))  # Columns: date, newpositives, positives
+    date2y    = Dict(date => y for (date, y) in zip(data.date, data.newpositives))
+    firstday  = Date(d["firstday"])
+    lastday   = Date(d["lastday"])
+    daterange = firstday:Day(1):(lastday - Day(1))
+    result    = fill(0, length(daterange))
+    for (i, date) in enumerate(daterange)
+        result[i] = haskey(date2y, date) ? date2y[date] : 0
     end
     result
 end

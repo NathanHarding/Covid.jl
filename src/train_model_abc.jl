@@ -27,14 +27,14 @@ function trainmodel(configfile::String)
     model  = init_model(params, cfg)
 
     @info "$(now()) Training model"
-    params  = (model, cfg, metrics, unknowns)  # 2nd argument of onerun
+    params  = (model, cfg, metrics, unknowns)  # 2nd argument of manyruns
     prior   = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
     loss    = rmse
-    plan    = ABCplan(prior, onerun, y, loss; params=params)
+    plan    = ABCplan(prior, manyruns, y, loss; params=params)
     etarget = d["solver_options"]["etarget"]
     delete!(d["solver_options"], "etarget")
     opts    = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["solver_options"])
-    res, delta, converged = ABCDE(plan, etarget; opts...)
+    res, delta, converged = KABCDE(plan, etarget; opts...)
 
     @info "$(now()) Extracting result"
     result  = construct_result(res, n_unknowns)  # Vector{NameTuple}
@@ -162,30 +162,32 @@ end
 ################################################################################
 # Model run
 
-function onerun(theta::T1, params::T2) where {T1 <: NTuple, T2 <: Tuple}
+function manyruns(theta::T1, params::T2) where {T1 <: NTuple, T2 <: Tuple}
     model, cfg, metrics, unknowns = params
-    firstday = cfg.firstday
-    lastday  = cfg.lastday
-    agents   = model.agents
     theta_to_params_and_policies!(theta, unknowns, cfg, model.params)
-    reset_model!(model, cfg)
-    reset_metrics!(model)
-    prev_npositives = 0
+    firstday  = cfg.firstday
+    lastday   = cfg.lastday
+    agents    = model.agents
     daterange = firstday:Day(1):lastday
-    result    = fill(0, length(daterange) - 1)
-    for (i, date) in enumerate(daterange)
-        model.date = date
-        date == lastday && break
-        update_policies!(cfg, date)
-        apply_forcing!(cfg.forcing, model, date)
-        execute_events!(model.schedule[date], agents, model, date, metrics)
+    result    = fill(0, length(daterange) - 1, cfg.nruns)  # Each column contains the time seris of 1 run
+    for r in 1:cfg.nruns
+        prev_npositives = 0  # Cumulative number of positives as of 11.59pm on date
+        reset_model!(model, cfg)
+        reset_metrics!(model)
+        for (i, date) in enumerate(daterange)
+            model.date = date
+            date == lastday && break
+            update_policies!(cfg, date)
+            apply_forcing!(cfg.forcing, model, date)
+            execute_events!(model.schedule[date], agents, model, date, metrics)
 
-        # Collect result
-        npositives = metrics[:positives]
-        result[i]  = npositives - prev_npositives
-        prev_npositives = npositives
+            # Collect result
+            cumulative_npositives = metrics[:positives]
+            result[i, r]    = cumulative_npositives - prev_npositives
+            prev_npositives = cumulative_npositives
+        end
     end
-    result
+    [quantile(view(result, t, :), 0.5) for t = 1:size(result, 1)]  # Median of simulated values at each time step
 end
 
 ################################################################################
