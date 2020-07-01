@@ -32,7 +32,10 @@ function trainmodel(configfile::String)
 
     @info "$(now()) Training model"
     params  = (model, cfg, metrics, unknowns)  # 2nd argument of manyruns
-    prior   = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
+    #prior   = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
+
+    prior   = Factored([Uniform(0.0,0.05), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5)]...)
+
     plan    = ABCplan(prior, manyruns, y, loss; params=params)
     opts    = d["solver_options"]
     etarget = opts["etarget"]
@@ -45,7 +48,7 @@ function trainmodel(configfile::String)
     res, delta, converged = ABCDE(plan, etarget; opts...)
 
     @info "$(now()) Extracting result"
-    result  = construct_result(res, n_unknowns)  # Vector{NameTuple}
+    result  = construct_result(res, n_unknowns)
     outfile = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
     @info "$(now()) Finished"
@@ -254,12 +257,10 @@ function prepare_training_data(d)
 end
 
 function construct_result(res, n_unknowns)
-    result = NamedTuple{(:name, :p025, :p25, :p50, :p75, :p975), Tuple{String, Float64, Float64, Float64, Float64, Float64}}[]
+    result = DataFrame()
     for i = 1:n_unknowns
-        p   = getindex.(res, i)
-        nm  = "x$(i)"  # TODO: Fix
-        row = (name=nm, p025=quantile(p, 0.025), p25=quantile(p, 0.25), p50=quantile(p, 0.5), p75=quantile(p, 0.75), p975=quantile(p, 0.975))
-        push!(result, row)
+        nm = Symbol("x$(i)")  # TODO: Fix
+        result[!, nm] = getindex.(res, i)
     end
     result
 end

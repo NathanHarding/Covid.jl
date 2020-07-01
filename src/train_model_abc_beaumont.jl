@@ -51,8 +51,8 @@ Probabilities are calculated from logits, which are drawn from independent Norma
 """
 function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
     # Extract options
-    nparticles = opts[:nparticles]
     nparams    = n_unknowns
+    nparticles = opts[:nparticles]
     nsteps     = opts[:nsteps]
     pmax       = opts[:pmax]
     alpha      = opts[:alpha]  # Quantile of distances used to set the distance threshold in steps 2:nsteps
@@ -60,11 +60,10 @@ function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
     # Work spaces
     probs     = fill(0.0, nparams, nparticles, nsteps)  # probs[:, j] = logit_to_prob.(particles[:, j, t], pmax)
     particles = fill(0.0, nparams, nparticles, nsteps)  # particles[:, j, t] ~ MvNormal(means[j], stds). Logit scale.  
-    means     = fill(0.0, nparams, nparticles)
+    means     = fill(0.0, nparams, nparticles)          # Mean of particle proposal distribution
     stds      = fill(1.0, nparams)
     weights   = fill(0.0, nparticles, nsteps)
     distances = fill(Inf, nparticles, nsteps)
-    wrk       = fill(0.0, nparticles)
 
     @info "$(now()) T = 1. epsilon = Inf"
     for j = 1:nparticles
@@ -75,13 +74,13 @@ function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
             distances[j, 1] = loss(y, output)
             if isfinite(distances[j, 1])
                 println("    Particle $(j). Distance = $(distances[j, 1])")
-                update_mean!(means, j, 1, particles)  # Set means[:, j, t] = particles[:, j, t]
+                update_mean!(means, particles, j, 1)  # Set means[:, j] = particles[:, j, t]
                 weights[j, 1] = 1.0 / nparticles
                 break
             end
         end
     end
-    update_stds!(stds, particles, 1, wrk)
+    update_stds!(stds, particles, weights, 1)
 
     # t > 1
     for t = 2:nsteps
@@ -99,14 +98,14 @@ function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
                 if dist <= epsilon
                     println("    Particle $(j). Distance = $(dist)")
                     distances[j, t] = dist
-                    update_mean!(means, j, t, particles)  # Set means[:, j, t] = particles[:, j, t]
+                    update_mean!(means, particles, j, t)  # Set means[:, j] = particles[:, j, t]
                     update_weight!(weights, j, t, particles, stds)
                     break
                 end
             end
         end
         normalise!(view(weights, :, t))
-        update_stds!(stds, particles, t, wrk)
+        update_stds!(stds, particles, weights, t)
     end
     probs, weights, distances
 end
@@ -125,21 +124,20 @@ function sample_particle!(probs, particle, m, s, pmax)
 end
 
 "Set means[:, j] = particles[:, j, t]"
-function update_mean!(means, j, t, particles)
+function update_mean!(means, particles, j, t)
     nparams = size(means, 1)
     for i = 1:nparams
         means[i, j] = particles[i, j, t]
     end
 end
 
-function update_stds!(stds, particles, t, wrk)
-    nparams    = length(stds)
-    nparticles = length(wrk)
+function update_stds!(stds, particles, weights, t)
+    nparams, nparticles, nsteps = size(particles)
+    w = Distributions.StatsBase.AnalyticWeights(view(weights, :, t))
     for i = 1:nparams
-        for j = 1:nparticles
-            wrk[j] = particles[i, j, t]
-        end
-        stds[i] = sqrt(2.0 * var(wrk))  # Variance = 2 x empirical variance of ith parameter
+        theta   = view(particles, i, :, t)  # Values of ith parameter at step t
+        m       = mean(theta, w)
+        stds[i] = sqrt(2.0 * var(theta, w; mean=m, corrected=true))  # Variance = 2 x empirical variance of ith parameter
     end
 end
 

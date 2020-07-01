@@ -18,7 +18,7 @@ demographics:
 
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am.
-lastday:  2020-06-01  # Simulation finishes at 12am
+lastday:  2020-03-23  # Simulation finishes at 12am
 nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
@@ -76,24 +76,23 @@ quarantine_policy:
 training_data: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
 
 solver_options:
-    #etarget: 10.0    # Standard deviation of the distance metric
-    #alpha: 0.75
-    #nparticles: 10  # Number of draws from the posterior returned by the function. Must be greater than the number of unknowns.
+    #etarget: 6.0   # Standard deviation of the distance metric
+    #alpha: 0.5
+    #nparticles: 50  # Number of draws from the posterior returned by the function. Must be greater than the number of unknowns.
     #generations: 10
     #verbose: true
     #parallel: true
     #iterations: 5
     #show_trace: true
     nparticles: 10
-    nsteps: 2
-    pmax: 0.05
-    alpha: 0.75
-
+    nsteps: 4
+    pmax: 0.5  # TODO: specify min and max for each parameter
+    alpha: 0.5
 
 # Unknowns to be estimated via training. Initial values are supplied in the config.
 unknowns:
     params: p_infect
-    #distancing_policy:
-    #    2020-01-18: [household, school, workplace, community, social]
-    #testing_policy:
-    #    2020-01-18: IS
+    distancing_policy:
+        2020-01-18: [household, school, workplace, community, social]
+    testing_policy:
+        2020-01-18: IS
