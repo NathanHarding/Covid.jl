@@ -31,10 +31,10 @@ function trainmodel(configfile::String)
 
     @info "$(now()) Training model"
     opts = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["solver_options"])
-    particles, weights, distances = beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
+    probs, weights, distances = beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
 
     @info "$(now()) Extracting result"
-    result  = construct_result(particles, weights, distances, opts[:pmax])  # Vector{NameTuple}
+    result  = construct_result(probs, weights, distances)
     outfile = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
     @info "$(now()) Finished"
@@ -58,22 +58,23 @@ function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
     alpha      = opts[:alpha]  # Quantile of distances used to set the distance threshold in steps 2:nsteps
 
     # Work spaces
+    probs     = fill(0.0, nparams, nparticles, nsteps)  # probs[:, j] = logit_to_prob.(particles[:, j, t], pmax)
     particles = fill(0.0, nparams, nparticles, nsteps)  # particles[:, j, t] ~ MvNormal(means[j], stds). Logit scale.  
     means     = fill(0.0, nparams, nparticles)
     stds      = fill(1.0, nparams)
-    probs     = fill(0.0, nparams, nparticles)  # probs[:, j] = logit_to_prob.(particles[:, j, t], pmax)
     weights   = fill(0.0, nparticles, nsteps)
-    distances = fill(Inf, nparticles)
+    distances = fill(Inf, nparticles, nsteps)
     wrk       = fill(0.0, nparticles)
 
     @info "$(now()) T = 1. epsilon = Inf"
     for j = 1:nparticles
-        p = view(probs, :, j)
+        p = view(probs, :, j, 1)
         for r = 1:1000  # Obtain a particle with finite loss
             sample_particle!(p, view(particles, :, j, 1), view(means, :, j), stds, pmax)
-            output       = manyruns(p, model, cfg, metrics, unknowns)
-            distances[j] = loss(y, output)
-            if isfinite(distances[j])
+            output = manyruns(p, model, cfg, metrics, unknowns)
+            distances[j, 1] = loss(y, output)
+            if isfinite(distances[j, 1])
+                println("    Particle $(j). Distance = $(distances[j, 1])")
                 update_mean!(means, j, 1, particles)  # Set means[:, j, t] = particles[:, j, t]
                 weights[j, 1] = 1.0 / nparticles
                 break
@@ -84,18 +85,20 @@ function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
 
     # t > 1
     for t = 2:nsteps
-        epsilon = quantile(distances, alpha)
+        epsilon = quantile(view(distances, :, t-1), alpha)
         @info "$(now()) T = $(t). epsilon = $(epsilon)"
         w_dist  = Categorical(weights[:, t-1])
         for j = 1:nparticles
-            p = view(probs, :, j)
+            p = view(probs, :, j, t)
             for r = 1:1000  # Obtain a particle with finite loss
                 k = rand(w_dist)  # Select a particle at random
+                distances[k, t-1] > epsilon && continue  # Only sample particles with distance <= epsilon
                 sample_particle!(p, view(particles, :, j, t), view(means, :, k), stds, pmax)  # Set jth particle = Perturbed kth particle
                 output = manyruns(p, model, cfg, metrics, unknowns)
                 dist   = loss(y, output)
                 if dist <= epsilon
-                    distances[j] = dist
+                    println("    Particle $(j). Distance = $(dist)")
+                    distances[j, t] = dist
                     update_mean!(means, j, t, particles)  # Set means[:, j, t] = particles[:, j, t]
                     update_weight!(weights, j, t, particles, stds)
                     break
@@ -105,7 +108,7 @@ function beaumont2009(y, model, cfg, metrics, unknowns, n_unknowns, opts)
         normalise!(view(weights, :, t))
         update_stds!(stds, particles, t, wrk)
     end
-    particles, weights, distances
+    probs, weights, distances
 end
 
 """
@@ -367,19 +370,25 @@ function prepare_training_data(d)
     result
 end
 
-function construct_result(particles, weights, distances, pmax)
-    result = NamedTuple{(:name, :p025, :p25, :p50, :p75, :p975), Tuple{String, Float64, Float64, Float64, Float64, Float64}}[]
-    nparams, nparticles, tmax = size(particles)
-    w   = Distributions.StatsBase.AnalyticWeights(weights[:, tmax])
-    p   = distances
-    row = (name="distances", p025=quantile(p, w, 0.025), p25=quantile(p, w, 0.25), p50=quantile(p, w, 0.5), p75=quantile(p, w, 0.75), p975=quantile(p, w, 0.975))
-    push!(result, row)
+function construct_result(probs, weights, distances)
+    # Init result
+    nparams, nparticles, nsteps = size(probs)
+    result = DataFrame(step=Int[], particle=Int[], weight=Float64[], distance=Float64[])
     for i = 1:nparams
-        logits = view(particles, i, :, tmax)
-        p   = logit_to_prob.(logits, pmax)
-        nm  = "x$(i)"  # TODO: Fix
-        row = (name=nm, p025=quantile(p, w, 0.025), p25=quantile(p, w, 0.25), p50=quantile(p, w, 0.5), p75=quantile(p, w, 0.75), p975=quantile(p, w, 0.975))
-        push!(result, row)
+        colname = Symbol("x$(i)")  # FIX
+        result[!, colname] = Float64[]
+    end
+
+    # Populate result
+    for t = 1:nsteps
+        for j = 1:nparticles
+            row = Dict{Symbol, Any}(:step => t, :particle => j, :weight => weights[j, t], :distance => distances[j, t])
+            for i = 1:nparams
+                colname = Symbol("x$(i)")
+                row[colname] = probs[i, j, t]
+            end
+            push!(result, row)
+        end
     end
     result
 end
