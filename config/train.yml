@@ -76,8 +76,9 @@ training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
 
 solver_options:
     etarget: 10.0    # Standard deviation of the distance metric
-    nparticles: 20  # Number of draws from the posterior returned by the function. Must be greater than the number of unknowns.
-    generations: 20
+    alpha: 0.75
+    nparticles: 10  # Number of draws from the posterior returned by the function. Must be greater than the number of unknowns.
+    generations: 10
     verbose: true
     parallel: true
     #iterations: 5
@@ -86,7 +87,7 @@ solver_options:
 # Unknowns to be estimated via training. Initial values are supplied in the config.
 unknowns:
     params: p_infect
-    distancing_policy:
-        2020-01-18: [household, school, workplace, community, social]
-    testing_policy:
-        2020-01-18: IS
+    #distancing_policy:
+    #    2020-01-18: [household, school, workplace, community, social]
+    #testing_policy:
+    #    2020-01-18: IS

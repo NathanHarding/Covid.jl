@@ -13,6 +13,8 @@ using YAML
 include("abm.jl")  # Depends on: core, config, contacts
 using .abm
 
+const ystats = Dict{Symbol, Int}(:max => 0, :total => 0)  # Used for early stopping criterion
+
 function trainmodel(configfile::String)
     @info "$(now()) Configuring model"
     d   = YAML.load_file(configfile)
@@ -21,6 +23,8 @@ function trainmodel(configfile::String)
 
     @info "$(now()) Preparing training data"
     y = prepare_training_data(d)
+    ystats[:max]   = maximum(y)
+    ystats[:total] = sum(y)
 
     @info "$(now()) Initialising model"
     params = construct_params(cfg.paramsfile, cfg.demographics.params)
@@ -29,12 +33,16 @@ function trainmodel(configfile::String)
     @info "$(now()) Training model"
     params  = (model, cfg, metrics, unknowns)  # 2nd argument of manyruns
     prior   = Factored([Uniform(0.0, 0.05) for i = 1:n_unknowns]...)
-    loss    = rmse
     plan    = ABCplan(prior, manyruns, y, loss; params=params)
-    etarget = d["solver_options"]["etarget"]
-    delete!(d["solver_options"], "etarget")
-    opts    = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["solver_options"])
-    res, delta, converged = KABCDE(plan, etarget; opts...)
+    opts    = d["solver_options"]
+    etarget = opts["etarget"]
+    delete!(opts, "etarget")
+    if haskey(opts, "alpha")
+        opts[string(Char(945))] = opts["alpha"]  # Replace "alpha" with the Greek letter (lower case)
+        delete!(opts, "alpha")
+    end
+    opts = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["solver_options"])
+    res, delta, converged = ABCDE(plan, etarget; opts...)
 
     @info "$(now()) Extracting result"
     result  = construct_result(res, n_unknowns)  # Vector{NameTuple}
@@ -171,7 +179,7 @@ function manyruns(theta::T1, params::T2) where {T1 <: NTuple, T2 <: Tuple}
     daterange = firstday:Day(1):lastday
     result    = fill(0, length(daterange) - 1, cfg.nruns)  # Each column contains the time seris of 1 run
     for r in 1:cfg.nruns
-        prev_npositives = 0  # Cumulative number of positives as of 11.59pm on date
+        prev_totalpositives = 0  # Cumulative number of positives as of 11.59pm on date
         reset_model!(model, cfg)
         reset_metrics!(model)
         for (i, date) in enumerate(daterange)
@@ -182,16 +190,26 @@ function manyruns(theta::T1, params::T2) where {T1 <: NTuple, T2 <: Tuple}
             execute_events!(model.schedule[date], agents, model, date, metrics)
 
             # Collect result
-            cumulative_npositives = metrics[:positives]
-            result[i, r]    = cumulative_npositives - prev_npositives
-            prev_npositives = cumulative_npositives
+            totalpositives = metrics[:positives]
+            new_positives  = totalpositives - prev_totalpositives
+            if new_positives > 2 * ystats[:max]  #  EARLY STOPPING CRITERION: Too many cases
+                return fill(Inf, 1, 1)  # Arbitrary 2D array containing large distances
+            end
+            result[i, r]        = new_positives
+            prev_totalpositives = totalpositives
         end
     end
-    [quantile(view(result, t, :), 0.5) for t = 1:size(result, 1)]  # Median of simulated values at each time step
+    result
 end
 
 ################################################################################
 # Loss function
+
+function loss(y, yhat)
+    !isfinite(yhat[1, 1]) && return Inf
+    agg = [quantile(view(yhat, t, :), 0.5) for t = 1:size(yhat, 1)]  # Median of simulated values at each time step
+    rmse(y, agg)
+end
 
 function negative_loglikelihood(y, yhat)
     n = size(y, 1)
