@@ -72,10 +72,15 @@ quarantine_policy:
 ################################################################################
 # Config specifically for training
 
-#training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
-training_data: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
+training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
+#training_data: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
 
-solver_options:
+options:
+    std: 6.0  # Standard deviation of the loss
+    nparticles: 10
+    generations: 4
+    parallel: false
+    verbose: 2
     #etarget: 6.0   # Standard deviation of the distance metric
     #alpha: 0.5
     #nparticles: 50  # Number of draws from the posterior returned by the function. Must be greater than the number of unknowns.
@@ -84,10 +89,10 @@ solver_options:
     #parallel: true
     #iterations: 5
     #show_trace: true
-    nparticles: 10
-    nsteps: 4
-    pmax: 0.5  # TODO: specify min and max for each parameter
-    alpha: 0.5
+    #nparticles: 10
+    #nsteps: 4
+    #pmax: 0.5  # TODO: specify min and max for each parameter
+    #alpha: 0.5
 
 # Unknowns to be estimated via training. Initial values are supplied in the config.
 unknowns:
