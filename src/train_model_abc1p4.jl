@@ -41,13 +41,13 @@ function trainmodel(configfile::String)
 
     @info "$(now()) Training model"
     opts  = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])
+    sd    = pop!(opts, :std)  # Standard deviation of the loss
     prior = Factored([Uniform(0.0,0.05), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5), Uniform(0.0,0.5)]...)
-    approxdensity = ApproxKernelizedPosterior(prior, loss, opts[:std])
-    delete!(opts, :std)
-    res, _ = mcmc(approxdensity; opts...)
+    approxdensity = ApproxKernelizedPosterior(prior, loss, sd)
+    particles, loglik = mcmc(approxdensity; opts...)
 
     @info "$(now()) Extracting result"
-    result  = construct_result(res, n_unknowns)
+    result  = construct_result(particles, loglik, sd)
     outfile = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
     @info "$(now()) Finished"
@@ -208,7 +208,7 @@ end
 function loss(particle)
     theta_to_params_and_policies!(particle, store[:unknowns], store[:config], store[:model].params)
     yhat = manyruns(store[:model], store[:config], store[:metrics], store[:ymax])
-    !isfinite(yhat[1, 1]) && return 1_000_000.0 * rand()  # Randomly large loss
+    !isfinite(yhat[1, 1]) && return Inf  # Randomly large loss
     agg = [quantile(view(yhat, t, :), 0.5) for t = 1:size(yhat, 1)]  # Median of simulated values at each time step
     rmse(store[:y], agg)
 end
@@ -255,11 +255,22 @@ function prepare_training_data(d)
     result
 end
 
-function construct_result(res, n_unknowns)
-    result = DataFrame()
-    for i = 1:n_unknowns
-        nm = Symbol("x$(i)")  # TODO: Fix
-        result[!, nm] = getindex.(res, i)
+function construct_result(particles, loglik, sd)
+    nparticles = size(particles, 1)
+    nparams    = length(particles[1])
+    colnames   = [Symbol("x$(j)") for j = 1:nparams]  # FIX
+    result     = DataFrame(logprior=fill(0.0, nparticles), logposterior=fill(0.0, nparticles), loss=fill(0.0, nparticles))
+    for colname in colnames
+        result[!, colname] = fill(0.0, nparticles)
+    end
+    for (i, particle) in enumerate(particles)
+        logposterior             = loglik[i].loglikelihood
+        result[i, :logprior]     = loglik[i].logprior
+        result[i, :logposterior] = logposterior
+        result[i, :loss]         = sd * sqrt(abs(2.0 * logposterior))
+        for (j, colname) in enumerate(colnames)
+            result[i, colname] = particle[j]
+        end
     end
     result
 end
