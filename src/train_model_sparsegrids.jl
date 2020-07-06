@@ -221,12 +221,11 @@ end
 
 function construct_result(nodes, probs, losses, colnames)
     nparams, nnodes = size(nodes)
-    result = DataFrame(node=Int[], loss=fill(0.0, nnodes), prob=fill(0.0, nnodes))
+    result = DataFrame(node=collect(1:nnodes), loss=fill(0.0, nnodes), prob=fill(0.0, nnodes))
     for colname in colnames
         result[!, colname] = fill(0.0, nnodes)
     end
     for j = 1:nnodes
-        result[j, :node] = j
         result[j, :loss] = losses[j]
         result[j, :prob] = probs[j]
         for (i, colname) in enumerate(colnames)
