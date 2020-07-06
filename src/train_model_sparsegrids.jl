@@ -164,6 +164,7 @@ function node_losses(nodes::Array{Float64, 2})
     for j = 1:nnodes
         node = view(nodes, :, j)
         result[j] = loss(node)
+        @info "$(now())    Node $(j). Loss = $(result[j])"
     end
     result
 end
@@ -220,18 +221,19 @@ end
 
 function construct_result(nodes, probs, losses, colnames)
     nparams, nnodes = size(nodes)
-    result = DataFrame(loss=fill(0.0, nnodes), prob=fill(0.0, nnodes))
+    result = DataFrame(node=Int[], loss=fill(0.0, nnodes), prob=fill(0.0, nnodes))
     for colname in colnames
         result[!, colname] = fill(0.0, nnodes)
     end
     for j = 1:nnodes
+        result[j, :node] = j
         result[j, :loss] = losses[j]
         result[j, :prob] = probs[j]
         for (i, colname) in enumerate(colnames)
             result[j, colname] = nodes[i, j]  # ith component of jth node
         end
     end
-    result
+    sort!(result, [:prob], rev=true)
 end
 
 end
