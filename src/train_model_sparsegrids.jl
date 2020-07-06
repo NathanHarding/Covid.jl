@@ -44,15 +44,14 @@ function trainmodel(configfile::String)
     x, w = sparsegrid(size(name2prior, 1), opts[:order], gausslegendre)  # gausslegendre produces nodes in [-1, 1]
     rescale!(x, w, name2prior)  # Rescale nodes from the [-1, 1] cube to the box defined by the priors
     losses   = node_losses(x)
-    gains    = 1.0 ./ losses
+    gains    = [exp(-x) for x in losses]
     probs    = gains ./ sum(gains)
     integral = dot(w, gains)
 
     @info "$(now()) Extracting result"
     @info "    Integral = $(integral)"
-    @info "    Max loss = $(store[:maxloss])"
     colnames = [Symbol(colname) for (colname, prior) in name2prior]
-    result   = construct_result(x, probs, losses, colnames)
+    result   = construct_result(x, w, probs, losses, colnames)  # Columns: node, weight, loss, prob, params...
     outfile  = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
     @info "$(now()) Finished"
@@ -107,13 +106,13 @@ end
 
 function rescale!(x, w, name2prior)
     nparams, nnodes = size(x)
-    w_scale = 1.0
+    w_scale = 1.0  # |Det(Jacobian)|
     for i = 1:nparams
         prior     = name2prior[i][2]
         lb, ub    = params(prior)
         _scale    = 0.5 * (ub - lb)
         translate = 0.5 * (lb + ub)
-        w_scale  *= _scale  # |Det(Jacobian)|
+        w_scale  *= _scale
         for j = 1:nnodes
             x[i, j] = _scale*x[i, j] + translate
         end
@@ -172,9 +171,10 @@ end
 function loss(particle)
     particle_to_params_and_policies!(particle, store[:name2prior], store[:config], store[:model].params)
     yhat = manyruns(store[:model], store[:config], store[:metrics], store[:ymax])
-    !isfinite(yhat[1, 1]) && return store[:maxloss]
+    !isfinite(yhat[1, 1]) && return 1000.0  # gain = exp(-loss) = exp(-1000) = 0
     agg = [quantile(view(yhat, t, :), 0.5) for t = 1:size(yhat, 1)]  # Median of simulated values at each time step
-    rmse(store[:y], agg)
+    result = rmse(store[:y], agg)
+    result < store[:maxloss] ? result : 1000.0  # gain = exp(-loss) = exp(-1000) = 0
 end
 
 function negative_loglikelihood(y, yhat)
@@ -219,18 +219,11 @@ function prepare_training_data(d)
     result
 end
 
-function construct_result(nodes, probs, losses, colnames)
+function construct_result(nodes, weights, probs, losses, colnames)
     nparams, nnodes = size(nodes)
-    result = DataFrame(node=collect(1:nnodes), loss=fill(0.0, nnodes), prob=fill(0.0, nnodes))
-    for colname in colnames
-        result[!, colname] = fill(0.0, nnodes)
-    end
-    for j = 1:nnodes
-        result[j, :loss] = losses[j]
-        result[j, :prob] = probs[j]
-        for (i, colname) in enumerate(colnames)
-            result[j, colname] = nodes[i, j]  # ith component of jth node
-        end
+    result = DataFrame(node=collect(1:nnodes), weight=weights, loss=losses, prob=probs)
+    for (i, colname) in enumerate(colnames)
+        result[!, colname] = [x for x in view(nodes, i, :)]
     end
     sort!(result, [:prob], rev=true)
 end
