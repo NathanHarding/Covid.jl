@@ -5,6 +5,7 @@ version = "0.1.2"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+Cuba = "8a292aeb-7a57-582c-b821-06e4c11590b1"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Demographics = "ce7d0591-943f-4b9f-ac68-e93022213889"

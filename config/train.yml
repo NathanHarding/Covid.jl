@@ -81,7 +81,7 @@ options:
     #generations: 50
     #parallel: false
     #verbose: 2
-    order: 4
+    order: 2
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:
