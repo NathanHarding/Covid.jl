@@ -45,7 +45,7 @@ function trainmodel(configfile::String)
     gain(x) = exp(6.0 - loss(x))
 
     domain  = [(0.0, 0.05), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5)]
-    npoints = 20
+    npoints = 10
     x0      = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1,  0.2]
     rtol    = 0.5
     res     = integrate(gain, domain, npoints, x0, rtol)
@@ -145,10 +145,13 @@ function loss(particle)
     store[:neval] += 1
     particle_to_params_and_policies!(particle, store[:name2prior], store[:config], store[:model].params)
     yhat = manyruns(store[:model], store[:config], store[:metrics], store[:ymax])
-    !isfinite(yhat[1, 1]) && return 1000.0  # gain = exp(-loss) = exp(-1000) = 0
-    agg = [quantile(view(yhat, t, :), 0.5) for t = 1:size(yhat, 1)]  # Median of simulated values at each time step
-    result = rmse(store[:y], agg)
-    result = result < store[:maxloss] ? result : 1000.0  # gain = exp(-loss) = exp(-1000) = 0
+    if isfinite(yhat[1, 1])
+        agg    = [quantile(view(yhat, t, :), 0.5) for t = 1:size(yhat, 1)]  # Median of simulated values at each time step
+        result = rmse(store[:y], agg)
+        result = result < store[:maxloss] ? result : 1000.0  # gain = exp(-loss) = exp(-1000) = 0
+    else
+        result = 1000.0
+    end
     @info "$(now())    Eval $(store[:neval]). Loss = $(round(result; digits=4)). x = $(round.(particle; digits=4))"
     result
 end

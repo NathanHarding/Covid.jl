@@ -22,7 +22,7 @@ mutable struct SimplexIntegration
         size(heights, 1) != npoints && error("The number of heights ($(size(heights,1))) does not match the number of points ($(npoints)).")        
         nv(simplices)    != 0       && error("The initial number of vertices should be 0")
         integral         != 0.0     && error("The initial value of the integral should be 0.0")
-        new(domain, npoints, points, heights, simplices, integral)
+        new(domain, points, heights, simplices, integral)
     end
 end
 
@@ -34,14 +34,14 @@ SimplexIntegration(domain, npoints) = SimplexIntegration(domain, fill(NaN, size(
 function integrate(f::Function, domain::Vector{Tuple{Float64, Float64}}, npoints::Int, x0::Vector{Float64}, rtol::Float64)
     result    = SimplexIntegration(domain, npoints)
     ndim      = size(domain, 1)
-    index0    = initial_simplex!(result, x0)
     simplices = result.simplices
     store[:npoints]   = 0  # The number of points measured so far
     store[:notdone]   = Set{Int}()  # Indices of simplicies that may require further splitting
     store[:detmatrix] = fill(0.0, ndim, ndim)  # Used to calculate the volume of a simplex
+    index0 = initial_simplex!(result, x0)
     integrate_simplex!(result, f, index0)
     while store[:npoints] < npoints
-        index1, index2 = split_simplex!(result, index0)  # Creates a new opint and 2 new simplices (nested in the parent)
+        index1, index2 = split_simplex!(result, index0)  # Creates a new point and 2 new simplices (nested in the parent)
         integrate_simplex!(result, f, index1)
         integrate_simplex!(result, f, index2)
         parent_integral   = integral(simplices, index0)
@@ -84,7 +84,7 @@ end
 "Construct a simplex using x0 and return its index"
 function initial_simplex!(result, x0::Vector{Float64})
     points = result.points
-    store[:npoints] += 1
+    store[:npoints] += length(x0) + 1  # npoints in a simplex is ndim + 1
     ndim = size(points, 1)
     for i = 1:ndim
         points[i, 1] = x0[i]
@@ -126,15 +126,14 @@ function new_simplex!(result, index0::Int)
     end
 
     # Create new simplex
-    newindices = copy(point_indices)
-    newindices[jmin] = jnew
+    newindices = replace(point_indices, jmin => jnew)  # Copy point_indices and replace jmin with jnew
     push_new_simplex!(result.simplices, newindices)
 end
 
 "Calculate the height at each vertex and integrate the integrand over the simplex."
 function integrate_simplex!(result, f, index)
     point_indices = get_prop(result.simplices, index, :points)
-    avgheight = 0
+    avgheight = 0.0
     for j in point_indices
         x = view(result.points, :, j)
         h = isnan(result.heights[j]) ? f(x) : result.heights[j]
@@ -155,6 +154,7 @@ function split_simplex!(result, index0)
     store[:npoints] += 1
     jnew   = store[:npoints]
     points = result.points
+    ndim   = size(points, 1)
     for i = 1:ndim
         points[i, jnew] = 0.5 * (points[i, jmin] + points[i, jmax])
     end
@@ -162,15 +162,13 @@ function split_simplex!(result, index0)
     # Create 2 child simplices
     simplices = result.simplices
     pop!(store[:notdone], index0)
-    newindices = copy(point_indices)
-    newindices[jmin] = jnew
+    newindices = replace(point_indices, jmin => jnew)  # Copy point_indices and replace jmin with jnew
     index1 = push_new_simplex!(simplices, newindices)
     add_edge!(simplices, index0, index1)  # index0 is a parent of index1
-    newindices = copy(point_indices)
-    newindices[jmax] = jnew
+    newindices = replace(point_indices, jmax => jnew)  # Copy point_indices and replace jmax with jnew
     index2 = push_new_simplex!(simplices, newindices)
     add_edge!(simplices, index0, index2)  # index0 is a parent of index2
-    index, index2
+    index1, index2
 end
 
 function best_worst_vertices(point_indices, heights)
@@ -215,12 +213,12 @@ function totalintegral!(simplices)
 end
 
 function parent(simplices, childid)
-    x = inneighbors(simplices[childid])
+    x = inneighbors(simplices, childid)
     length(x) == 0 && return 0
     length(x) == 1 && return x[1]
     error("Simplex has more than 1 parent")
 end
 
-children(simplices, parentid) = outneighbors(simplices[parentid])
+children(simplices, parentid) = outneighbors(simplices, parentid)
 
 end
