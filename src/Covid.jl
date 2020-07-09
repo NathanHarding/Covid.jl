@@ -9,7 +9,8 @@ using .run_model
 #include("train_model_abc_beaumont.jl")  # Exports: trainmodel
 #include("train_model_sparsegrids.jl")  # Exports trainmodel
 #include("train_model_cuhre.jl")  # Exports trainmodel
-include("train_model_simplex.jl")
+#include("train_model_simplex.jl")
+include("train_model_optim.jl")
 using .train_model
 
 end

@@ -7,13 +7,11 @@ using DataFrames
 using Dates
 using Distributions
 using Logging
+using Optim
 using YAML
 
 include("abm.jl")  # Depends on: core, config, contacts
 using .abm
-
-include("simplex_integration.jl")
-using .simplex_integration
 
 const store = Dict{Symbol, Any}()  # Used in the loss function
 
@@ -38,24 +36,18 @@ function trainmodel(configfile::String)
     store[:config]     = cfg
     store[:metrics]    = metrics
     store[:name2prior] = name2prior
-    store[:neval]      = 0
+    store[:trace]      = NamedTuple{(:loss, :x),Tuple{Float64,Vector{Float64}}}[]
 
     @info "$(now()) Training model"
-    opts    = Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])
-    gain(x) = exp(6.0 - loss(x))
-
-    domain  = [(0.0, 0.05), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5), (0.0, 0.5)]
-    npoints = 100
-    x0      = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1,  0.2]
-    rtol    = 0.1
-    res     = integrate(gain, domain, npoints, x0, rtol)
+    nparams = size(name2prior, 1)
+    theta0  = fill(0.0, nparams)
+theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
+    opts    = Optim.Options(; Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])...)
+    result  = optimize(loss, theta0, NelderMead(), opts)
 
     @info "$(now()) Extracting result"
-    @info "    Integral = $(res.integral)"
-    losses   = 6.0 .- log.(res.heights)
-    probs    = res.heights ./ sum(res.heights)
     colnames = [Symbol(colname) for (colname, prior) in name2prior]
-    result   = construct_result(res.points, losses, probs, colnames)  # Columns: node, weight, loss, prob, params...
+    result   = construct_result(store[:trace], colnames)  # Columns: node, weight, loss, prob, params...
     outfile  = joinpath(cfg.output_directory, "trained_params.tsv")
     CSV.write(outfile, result; delim='\t')
     @info "$(now()) Finished"
@@ -142,7 +134,6 @@ end
 # Loss function
 
 function loss(particle)
-    store[:neval] += 1
     particle_to_params_and_policies!(particle, store[:name2prior], store[:config], store[:model].params)
     yhat = manyruns(store[:model], store[:config], store[:metrics], store[:ymax])
     if isfinite(yhat[1, 1])
@@ -152,7 +143,8 @@ function loss(particle)
     else
         result = 1000.0
     end
-    @info "$(now())    Eval $(store[:neval]). Loss = $(round(result; digits=4)). x = $(round.(particle; digits=4))"
+    push!(store[:trace], (loss=result, x=particle))
+    @info "$(now())    Eval $(length(store[:trace])). Loss = $(round(result; digits=4)). x = $(round.(particle; digits=4))"
     result
 end
 
@@ -198,12 +190,28 @@ function prepare_training_data(d)
     result
 end
 
-function construct_result(points, losses, probs, colnames)
-    nparams, npoints = size(points)
-    result = DataFrame(node=collect(1:npoints), loss=losses, prob=probs)
+function construct_result(trace, colnames)
+    # First pass: All rows of trace
+    losses = [point.loss for point in trace]
+    temp   = DataFrame(loss=losses)
     for (i, colname) in enumerate(colnames)
-        result[!, colname] = [x for x in view(points, i, :)]
+        temp[!, colname] = [point.x[i] for point in trace]
     end
+
+    # Second pass: Group duplicate particles
+    result = DataFrame(fill(Float64, length(colnames) + 1), vcat(:loss, colnames), 0)
+    for subdata in groupby(temp, colnames)
+        row = Dict{Symbol, Float64}(:loss => mean(subdata.loss))
+        for colname in colnames
+           row[colname] = subdata[1, colname]
+        end
+        push!(result, row)
+    end
+    minloss = minimum(result.loss)
+    gains   = exp.(minloss .- result.loss)
+    result[!, :node] = collect(1:size(result,1))
+    result[!, :prob] = gains ./ sum(gains)
+    result = result[:, vcat(:node, :loss, :prob, colnames)]
     sort!(result, [:prob], rev=true)
 end
 

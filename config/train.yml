@@ -81,14 +81,18 @@ options:
     #generations: 50
     #parallel: false
     #verbose: 2
-    order: 2
+    #order: 2
+    #f_calls_limit: 100   # Soft limit
+    time_limit: 120  # Soft limit
+    #iterations: 5
+    f_tol: 0.1  # Relative error of objective function
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:
-    - params.p_infect:                       [Uniform, 0.0, 0.05]
-    - distancingpolicy.household.2020-01-18: [Uniform, 0.0, 0.5]
-    - distancingpolicy.school.2020-01-18:    [Uniform, 0.0, 0.5]
-    - distancingpolicy.workplace.2020-01-18: [Uniform, 0.0, 0.5]
-    - distancingpolicy.community.2020-01-18: [Uniform, 0.0, 0.5]
-    - distancingpolicy.social.2020-01-18:    [Uniform, 0.0, 0.5]
-    - testingpolicy.IS.2020-01-18:           [Uniform, 0.0, 0.5]
+    - params.p_infect:                       [Uniform, 0.005, 0.05]
+    - distancingpolicy.household.2020-01-18: [Uniform, 0.001, 0.5]
+    - distancingpolicy.school.2020-01-18:    [Uniform, 0.001, 0.5]
+    - distancingpolicy.workplace.2020-01-18: [Uniform, 0.001, 0.5]
+    - distancingpolicy.community.2020-01-18: [Uniform, 0.001, 0.5]
+    - distancingpolicy.social.2020-01-18:    [Uniform, 0.001, 0.5]
+    - testingpolicy.IS.2020-01-18:           [Uniform, 0.001, 0.5]
