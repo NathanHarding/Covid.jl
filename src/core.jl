@@ -43,28 +43,37 @@ function execute_events!(events, agents, model, dt, metrics)
 end
 
 function init_output(metrics, firstday::Date, lastday::Date)
+    naddresses = length(metrics)
     rg = firstday:Day(1):lastday
-    n  = length(rg)
-    result = DataFrame(run=fill(0, n), date=[dt for dt in rg])
-    for (colname, val0) in metrics
+    n  = naddresses * length(rg)
+    result     = DataFrame(run=fill(0, n), date=Vector{Date}(undef, n), address=fill(0, n))
+    address, m = first(metrics)
+    for (colname, val0) in m
         result[!, colname] = Vector{typeof(val0)}(undef, n)
     end
     result
 end
 
-function reset_output!(output::DataFrame, run_number::Int)
-    fill!(output.run, run_number)
-    for (colname, coldata) in eachcol(output, true)
-        colname == :run  && continue
-        colname == :date && continue
-        fill!(coldata, zero(eltype(coldata)))
+function metrics_to_output!(metrics, output, run_number::Int, dt::Date)
+    i = findfirst(isequal(0), output.run) - 1
+    for (address, m) in metrics
+        i += 1
+        output[i, :run]     = run_number
+        output[i, :date]    = dt
+        output[i, :address] = address
+        for (colname, val) in m
+            output[i, colname] = val
+        end
     end
 end
 
-function metrics_to_output!(metrics, output, dt::Date)
-    i = findfirst(isequal(dt), output.date)
-    for (colname, val) in metrics
-        output[i, colname] = val
+function reset_output!(output::DataFrame)
+    for (colname, coldata) in eachcol(output, true)
+        if colname == :date
+            fill!(coldata, Date(1900, 1, 1))
+        else
+            fill!(coldata, zero(eltype(coldata)))
+        end
     end
 end
 

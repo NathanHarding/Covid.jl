@@ -8,7 +8,7 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export Config, metrics, update_policies!, init_model, reset_model!, reset_metrics!, apply_forcing!, # API required from any model module
+export Config, metrics, update_policies!, init_model, reset_model!, initialise_metrics, reset_metrics!, apply_forcing!, # API required from any model module
        init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module as is
 
 using DataFrames
@@ -76,26 +76,38 @@ end
 ################################################################################
 # Metrics
 
-const metrics = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :H => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0,
-                     :positives => 0, :negatives => 0)
+const metrics = Dict{Int, Dict{Symbol, Int}}()  # SA2 => metrics_sa2
+
+metrics_sa2() = Dict(:S => 0, :E => 0, :IA => 0, :IS => 0, :H => 0, :W => 0, :ICU => 0, :V => 0, :R => 0, :D => 0, :positives => 0, :negatives => 0)
+
+function initialise_metrics(people)
+    for person in people
+        address = person.address
+        haskey(metrics, address) && continue
+        metrics[address] = metrics_sa2()
+    end
+end
 
 function reset_metrics!(model)
-    for (k, v) in metrics
-        metrics[k] = 0
+    for (address, m) in metrics
+        for (k, v) in m
+            m[k] = 0
+        end
     end
-    for agent in model.agents
-        metrics[agent.state.status] += 1
+    people = model.agents
+    for person in people
+        metrics[person.address][person.state.status] += 1
     end
 end
 
 "Remove the agent's old state from metrics"
-function unfit!(metrics::Dict{Symbol, Int}, agent)
-    metrics[agent.state.status] -= 1
+function unfit!(metrics::Dict{Int, Dict{Symbol, Int}}, person)
+    metrics[person.address][person.state.status] -= 1
 end
 
 "Add the agent's new state to metrics"
-function fit!(metrics::Dict{Symbol, Int}, agent)
-    metrics[agent.state.status] += 1
+function fit!(metrics::Dict{Int, Dict{Symbol, Int}}, person)
+    metrics[person.address][person.state.status] += 1
 end
 
 ################################################################################
@@ -209,10 +221,10 @@ function get_test_result!(agent::Person{Int, DiseaseProgression}, model, dt)
     state = agent.state
     state.quarantined = false
     if (state.status == :S || state.status == :R)
-        metrics[:negatives] += 1
+        metrics[agent.address][:negatives] += 1
         state.last_test_result = 'n'
     else
-        metrics[:positives] += 1
+        metrics[agent.address][:positives] += 1
         state.last_test_result = 'p'
         apply_quarantine_policy!(agent, model, dt)
         apply_tracing_policy!(agent, model, dt)
