@@ -3,7 +3,6 @@ module config
 export Config, DistancingPolicy, TestingPolicy, TracingPolicy, QuarantinePolicy
 
 using Dates
-using Demographics
 using YAML
 
 ################################################################################
@@ -141,8 +140,8 @@ end
 
 ################################################################################
 struct Config
+    demographics_datadir::String  # Directory containing saved population data. people = load(demographics_datadir)
     output_directory::String
-    demographics::Demographics.Config
     firstday::Date  # Simulation starts at 12am
     lastday::Date   # Simulation finishes at 12am
     nruns::Int
@@ -153,7 +152,8 @@ struct Config
     t2tracingpolicy::Dict{Date, TracingPolicy}        # t => tracing_policy
     t2quarantinepolicy::Dict{Date, QuarantinePolicy}  # t => quarantine_policy
 
-    function Config(outdir, cfg_demographics, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    function Config(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        !isdir(dirname(demographics_datadir)) && error("The directory containing the output directory does not exist: $(dirname(demographics_datadir))")
         !isdir(dirname(outdir)) && error("The directory containing the output directory does not exist: $(dirname(outdir))")
         if !isdir(outdir)
             mkdir(outdir)
@@ -170,16 +170,17 @@ struct Config
                 n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
             end
         end
-        new(outdir, cfg_demographics, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        new(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
     end
 end
 
 Config(configfile::String) = Config(YAML.load_file(configfile))
 
 function Config(d::Dict)
+    datadir_attempt    = constructpath(d["demographics_datadir"],  '/')
+    demographics_datadir = isdir(datadir_attempt) ? datadir_attempt : constructpath(joinpath(pwd(), d["demographics_datadir"]), '/')
     outdir_attempt     = constructpath(d["output_directory"], '/')
     outdir             = isdir(outdir_attempt) ? outdir_attempt : constructpath(joinpath(pwd(), d["output_directory"]), '/')
-    cfg_demographics   = Demographics.Config(d["demographics"])
     firstday           = Date(d["firstday"])
     lastday            = Date(d["lastday"])
     nruns              = d["nruns"]
@@ -189,7 +190,7 @@ function Config(d::Dict)
     t2testingpolicy    = isnothing(d["testing_policy"])    ? Dict{Date, TestingPolicy}()    : Dict(Date(dt) => TestingPolicy(policy)    for (dt, policy) in d["testing_policy"])
     t2tracingpolicy    = isnothing(d["tracing_policy"])    ? Dict{Date, TracingPolicy}()    : Dict(Date(dt) => TracingPolicy(policy)    for (dt, policy) in d["tracing_policy"])
     t2quarantinepolicy = isnothing(d["quarantine_policy"]) ? Dict{Date, QuarantinePolicy}() : Dict(Date(dt) => QuarantinePolicy(policy) for (dt, policy) in d["quarantine_policy"])
-    Config(outdir, cfg_demographics, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    Config(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
 end
 
 "Constructs a valid file or directory path by ensuring the correct separator for the operating system."

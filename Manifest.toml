@@ -106,12 +106,12 @@ deps = ["Mmap"]
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[Demographics]]
-deps = ["CSV", "DataFrames", "Dates", "Distributions", "JSON", "JSON3", "LightGraphs", "Logging", "Random", "YAML"]
-git-tree-sha1 = "55400ef4c2896be0506432f428dc454dc36701ad"
+deps = ["CSV", "DataFrames", "Dates", "Distributions", "JSON", "LightGraphs", "Logging", "Random", "YAML"]
+git-tree-sha1 = "a9d8943968869b97c4df520e5ffca0f7414e05b6"
 repo-rev = "master"
 repo-url = "https://github.com/JockLawrie/Demographics.jl"
 uuid = "ce7d0591-943f-4b9f-ac68-e93022213889"
-version = "0.1.0"
+version = "0.2.0"
 
 [[DiffResults]]
 deps = ["StaticArrays"]
@@ -211,12 +211,6 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "b34d7cef7b337321e97d22242c3c2b91f476748e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.0"
-
-[[JSON3]]
-deps = ["Dates", "Mmap", "Parsers", "StructTypes", "UUIDs"]
-git-tree-sha1 = "6e34f9da882f28e05c8f790bbfd150bd7b5d8de7"
-uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-version = "1.0.3"
 
 [[KissABC]]
 deps = ["Distributions", "ProgressMeter", "Random"]
@@ -457,12 +451,6 @@ git-tree-sha1 = "f290ddd5fdedeadd10e961eb3f4d3340f09d030a"
 uuid = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 version = "0.9.4"
 
-[[StructTypes]]
-deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "1ed04f622a39d2e5a6747c3a70be040c00333933"
-uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
-version = "1.1.0"
-
 [[SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
@@ -515,6 +503,6 @@ version = "0.4.0"
 
 [[Zlib_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "64b39656c75e67f85b4ac2b336c54674a39f599d"
+git-tree-sha1 = "a2e0d558f6031002e380a90613b199e37a8565bf"
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.11+11"
+version = "1.2.11+10"

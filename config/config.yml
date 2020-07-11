@@ -1,21 +1,4 @@
-demographics:
-    input_datadir:  "../Demographics.jl/test/data/input"   # When testing this dir is Demographics.jl/test/data/input
-    output_datadir: "../Demographics.jl/test/data/output"  # When testing this dir is Demographics.jl/test/data/output
-    input_datafiles:
-        age_distribution:             "population_by_age.tsv"
-        workplace_distribution:       "workplace_by_size.tsv"
-        primaryschool_distribution:   "avg_yearlevel_size_distribution_primary.tsv"
-        secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
-        household_distribution:       "households.tsv"
-    params: [
-        {name: n_social_contacts,    value: 35, description: Number of social contacts per person},
-        {name: n_community_contacts, value: 20, description: Number of community contacts per person},
-        {name: n_workplace_contacts, value: 20, description: Number of non-school workplace contacts per person},
-        {name: ncontacts_s2s,        value: 15, description: Student-to-student contacts per student},
-        {name: ncontacts_t2t,        value: 10, description: Teacher-to-teacher contacts per student},
-        {name: ncontacts_t2s,        value: 20, description: Teacher-to-student contacts per teacher}
-    ]
-
+demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am.
 lastday:  2021-01-01  # Simulation finishes at 12am

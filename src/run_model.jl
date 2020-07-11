@@ -21,7 +21,7 @@ function runmodel(configfile::String)
     outfile = joinpath(cfg.output_directory, "metrics.csv")
 
     @info "$(now()) Initialising model"
-    params = construct_params(cfg.paramsfile, cfg.demographics.params)
+    params = construct_params(cfg.paramsfile)
     model  = init_model(params, cfg)
 
     # Run model
@@ -50,10 +50,9 @@ end
 ################################################################################
 # Utils
 
-function construct_params(paramsfile::String, demographics_params::Dict{Symbol, Float64})
-    tbl    = DataFrame(CSV.File(paramsfile))
-    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
-    merge!(params, demographics_params)  # Merge d2 into d1 and return d1 (d1 is enlarged, d2 remains unchanged)
+function construct_params(paramsfile::String)
+    tbl = DataFrame(CSV.File(paramsfile))
+    Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
 end
 
 end
