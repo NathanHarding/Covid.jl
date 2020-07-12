@@ -1,16 +1,26 @@
 demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
-firstday: 2020-01-18  # Simulation starts at 12am.
-lastday:  2021-01-01  # Simulation finishes at 12am
-nruns: 10
+firstday: 2020-05-01  # Simulation starts at 12am (initial state recorded at 11:59pm).
+lastday:  2020-12-31  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
+nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
 forcing:
     2020-01-18: {E: 10}
-    2020-01-25: {E: 10}  # At 00:00:01 change 1 person from Susceptible to Exposed
+    2020-01-25: {E: 10}
     2020-02-01: {E: 10}
     2020-02-08: {E: 10}
     2020-02-15: {E: 10}
+    2020-05-01: {E: 200}
+    2020-05-08: {E: 200}
+    2020-05-15: {E: 200}
+    2020-05-22: {E: 200}
+    2020-05-29: {E: 200}
+    2020-06-01: {E: 200}   # Arbitrary definition: Start of 2nd wave.
+    #2020-06-08: {E: 20}
+    #2020-06-15: {E: 20}
+    #2020-06-22: {E: 20}
+    #2020-06-29: {E: 20}
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
@@ -25,6 +35,8 @@ distancing_policy:
     2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
     2020-06-09: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)
     2020-06-15: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
+    2020-07-08: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
+    2020-08-20: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested

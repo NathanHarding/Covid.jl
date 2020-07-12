@@ -32,11 +32,13 @@ function execute_event!(func::Function, agent, model, dt, metrics)
     fit!(metrics, agent)    # Add agent's new state to metrics
 end
 
-function execute_events!(events, agents, model, dt, metrics)
+function execute_events!(schedule, date, agents, model, metrics)
+    !haskey(schedule, date) && return  # No events scheduled for date
+    events = schedule[date]
     k = 1
     while haskey(events, k)
         func, id = events[k]
-        execute_event!(func, agents[id], model, dt, metrics)
+        execute_event!(func, agents[id], model, date, metrics)
         k += 1
     end
     empty!(events)
@@ -45,7 +47,7 @@ end
 function init_output(metrics, firstday::Date, lastday::Date)
     naddresses = length(metrics)
     rg = firstday:Day(1):lastday
-    n  = naddresses * length(rg)
+    n  = length(rg) * (naddresses + 1)  # +1 for sum over addresses
     result     = DataFrame(run=fill(0, n), date=Vector{Date}(undef, n), address=fill(0, n))
     address, m = first(metrics)
     for (colname, val0) in m
@@ -55,14 +57,21 @@ function init_output(metrics, firstday::Date, lastday::Date)
 end
 
 function metrics_to_output!(metrics, output, run_number::Int, dt::Date)
-    i = findfirst(isequal(0), output.run) - 1
+    # Init results for total over all addresses ("address" = 0)
+    i1 = findfirst(isequal(0), output.run)
+    output[i1, :run]  = run_number
+    output[i1, :date] = dt
+
+    # Results by address
+    i = i1
     for (address, m) in metrics
         i += 1
         output[i, :run]     = run_number
         output[i, :date]    = dt
         output[i, :address] = address
         for (colname, val) in m
-            output[i, colname] = val
+            output[i,  colname]  = val
+            output[i1, colname] += val  # Populate total over all addresses
         end
     end
 end

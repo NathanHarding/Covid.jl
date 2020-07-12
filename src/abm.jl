@@ -66,11 +66,31 @@ const active_testing_policy    = TestingPolicy(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 const active_tracing_policy    = TracingPolicy((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
 const active_quarantine_policy = QuarantinePolicy((days=0,compliance=0.0), (days=0,compliance=0.0), Dict(:household => (days=0,compliance=0.0)))
 
-function update_policies!(cfg::Config, dt::Date)
-    haskey(cfg.t2distancingpolicy, dt) && update_struct!(active_distancing_policy, cfg.t2distancingpolicy[dt])
-    haskey(cfg.t2testingpolicy, dt)    && update_struct!(active_testing_policy,    cfg.t2testingpolicy[dt])
-    haskey(cfg.t2tracingpolicy, dt)    && update_struct!(active_tracing_policy,    cfg.t2tracingpolicy[dt])
-    haskey(cfg.t2quarantinepolicy, dt) && update_struct!(active_quarantine_policy, cfg.t2quarantinepolicy[dt])
+function update_policies!(cfg::Config, dt::Date, exactdate::Bool)
+    update_policy!(active_distancing_policy, cfg.t2distancingpolicy, dt, exactdate)
+    update_policy!(active_testing_policy,    cfg.t2testingpolicy,    dt, exactdate)
+    update_policy!(active_tracing_policy,    cfg.t2tracingpolicy,    dt, exactdate)
+    update_policy!(active_quarantine_policy, cfg.t2quarantinepolicy, dt, exactdate)
+end
+
+"""
+Update active_policy to t2policy[dt].
+If exactdate is false, use t2policy[date], where date is the most recent policy date on or before dt.
+"""
+function update_policy!(active_policy, t2policy, dt::Date, exactdate::Bool)
+    if haskey(t2policy, dt)
+        update_struct!(active_policy, t2policy[dt])  # Applicable whether exactdate is true or false
+        return
+    end
+    exactdate && return
+    earliest_date = Date(2020, 1, 1)
+    for date = (dt - Day(1)):Day(-1):earliest_date  # Implement the latest policy before dt. Loop backwards from dt-Day(1) to earliest_date
+        if haskey(t2policy, date)
+            update_struct!(active_policy, t2policy[date])
+            return
+        end
+    end
+    error("No recent date (dt = $(dt)) could be found for the policy.")
 end
 
 ################################################################################

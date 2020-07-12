@@ -38,11 +38,10 @@ function runmodel(configfile::String)
         reset_output!(output)
         for date in firstday:Day(1):lastday
             model.date = date
-            metrics_to_output!(metrics, output, r, date)  # System as of 12am on date
-            date == lastday && break
-            update_policies!(cfg, date)
+            update_policies!(cfg, date, date > firstday)
             apply_forcing!(cfg.forcing, model, date)
-            execute_events!(model.schedule[date], agents, model, date, metrics)
+            execute_events!(model.schedule, date, agents, model, metrics)
+            metrics_to_output!(metrics, output, r, date)  # System at 11:59pm
         end
         CSV.write(outfile, output; delim=',', append=r>1)
     end
