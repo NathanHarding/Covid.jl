@@ -2,7 +2,7 @@ demographics_datadir: "../Demographics.jl/test/data/output"  # Directory contain
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-05-01  # Simulation starts at 12am (initial state recorded at 11:59pm).
 lastday:  2020-12-31  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
-nruns: 20
+nruns: 500
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
 forcing:
@@ -11,16 +11,9 @@ forcing:
     2020-02-01: {E: 10}
     2020-02-08: {E: 10}
     2020-02-15: {E: 10}
-    2020-05-01: {E: 200}
-    2020-05-08: {E: 200}
-    2020-05-15: {E: 200}
-    2020-05-22: {E: 200}
-    2020-05-29: {E: 200}
-    2020-06-01: {E: 200}   # Arbitrary definition: Start of 2nd wave.
-    #2020-06-08: {E: 20}
-    #2020-06-15: {E: 20}
-    #2020-06-22: {E: 20}
-    #2020-06-29: {E: 20}
+    2020-06-01: {E: 500}
+    2020-06-08: {E: 500}  # Arbitrary definition: Start of 2nd wave.
+    2020-06-15: {E: 100}
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
@@ -45,6 +38,7 @@ testing_policy:
     2020-03-07: {IS: 0.5, W: 1.0}  # Pandemic testing
     2020-04-27: {IS: 0.8, W: 1.0}  # Testing blitz in Victoria
     2020-05-25: {IS: 0.5, W: 1.0}  # Resume pandemic testing
+    2020-07-01: {IS: 0.8, W: 1.0}  # Blitz testing
 
 # Pr(Test | Person is a contact of a known case, status)
 # Asymptomatic contacts are S, E, IA or R.
