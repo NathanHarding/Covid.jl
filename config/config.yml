@@ -1,8 +1,8 @@
 demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
-firstday: 2020-05-01  # Simulation starts at 12am (initial state recorded at 11:59pm).
+firstday: 2020-06-01  # Simulation starts at 12am (initial state recorded at 11:59pm).
 lastday:  2020-12-31  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
-nruns: 500
+nruns: 200
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
 forcing:
@@ -11,9 +11,12 @@ forcing:
     2020-02-01: {E: 10}
     2020-02-08: {E: 10}
     2020-02-15: {E: 10}
-    2020-06-01: {E: 500}
-    2020-06-08: {E: 500}  # Arbitrary definition: Start of 2nd wave.
-    2020-06-15: {E: 100}
+    2020-06-01: {E: 200}
+    2020-06-08: {E: 200}  # Arbitrary definition: Start of 2nd wave (observed).
+    2020-06-15: {E: 300}
+    2020-06-22: {E: 300}
+    2020-06-29: {E: 500}
+    2020-07-06: {E: 500}
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
