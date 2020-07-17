@@ -1,7 +1,7 @@
 demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
-firstday: 2020-06-01  # Simulation starts at 12am (initial state recorded at 11:59pm).
-lastday:  2020-12-31  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
+firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
+lastday:  2021-06-30  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
 nruns: 200
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
@@ -11,12 +11,12 @@ forcing:
     2020-02-01: {E: 10}
     2020-02-08: {E: 10}
     2020-02-15: {E: 10}
-    2020-06-01: {E: 200}
-    2020-06-08: {E: 200}  # Arbitrary definition: Start of 2nd wave (observed).
-    2020-06-15: {E: 300}
-    2020-06-22: {E: 300}
-    2020-06-29: {E: 500}
-    2020-07-06: {E: 500}
+    2020-04-17: {E: 80}    # Cedar Meats outbreak
+    2020-04-24: {E: 80}    # Fawkner McDonalds outbreak
+    2020-06-01: {E: 100}   # Security guard breaches, family gatherings, localised school outbreaks
+    2020-06-06: {E: 500}   # BLM protest Melbourne
+    2020-06-08: {E: 100}   # Security guard breaches, family gatherings, localised school outbreaks
+    2020-06-15: {E: 100}   # Security guard breaches, family gatherings, localised school outbreaks
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
@@ -47,9 +47,9 @@ testing_policy:
 # Asymptomatic contacts are S, E, IA or R.
 # Symptomatic contacts are IS or H because W, ICU and V patients have already been tested upon admission to hospital.
 tracing_policy:
-    2020-01-18: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
-    2020-03-25: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
-    2020-05-04: {household: {symptomatic: 1.0, asymptomatic: 0.0}, school: {symptomatic: 1.0, asymptomatic: 0.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 0.0}, social: {symptomatic: 1.0, asymptomatic: 0.0}}
+    2020-01-18: {household: {symptomatic: 0.5, asymptomatic: 0.0}, school: {symptomatic: 0.0, asymptomatic: 0.0}, workplace: {symptomatic: 0.0, asymptomatic: 0.0}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.0, asymptomatic: 0.0}}
+    2020-03-25: {household: {symptomatic: 1.0, asymptomatic: 0.9}, school: {symptomatic: 0.8, asymptomatic: 0.0}, workplace: {symptomatic: 0.5, asymptomatic: 0.1}, community: {symptomatic: 0.0, asymptomatic: 0.0}, social: {symptomatic: 0.1, asymptomatic: 0.0}}
+    2020-05-04: {household: {symptomatic: 1.0, asymptomatic: 0.9}, school: {symptomatic: 0.8, asymptomatic: 0.0}, workplace: {symptomatic: 0.5, asymptomatic: 0.1}, community: {symptomatic: 0.02, asymptomatic: 0.0}, social: {symptomatic: 0.1, asymptomatic: 0.0}}
 #    2020-06-15: {household: {symptomatic: 1.0, asymptomatic: 1.0}, school: {symptomatic: 1.0, asymptomatic: 1.0}, workplace: {symptomatic: 1.0, asymptomatic: 1.0}, community: {symptomatic: 1.0, asymptomatic: 1.0}, social: {symptomatic: 1.0, asymptomatic: 1.0}}
 
 # People who are awaiting test results are quarantined until the result is available, which is currently 2 days after the test date.
