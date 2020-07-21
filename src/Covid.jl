@@ -10,7 +10,8 @@ using .run_model
 #include("train_model_sparsegrids.jl")  # Exports trainmodel
 #include("train_model_cuhre.jl")  # Exports trainmodel
 #include("train_model_simplex.jl")
-include("train_model_optim.jl")
+#include("train_model_optim.jl")
+include("train_model_nlopt.jl")
 using .train_model
 
 end

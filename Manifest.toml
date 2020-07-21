@@ -256,6 +256,12 @@ version = "0.5.5"
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
+[[MathProgBase]]
+deps = ["LinearAlgebra", "SparseArrays"]
+git-tree-sha1 = "9abbe463a1e9fc507f12a69e7f29346c2cdc472c"
+uuid = "fdba3010-5040-5b88-9595-932c9decdf73"
+version = "0.7.8"
+
 [[MetaGraphs]]
 deps = ["JLD2", "LightGraphs", "Random"]
 git-tree-sha1 = "8900d368fa44bd61c7e598d6a0f577e347f3cf67"
@@ -277,6 +283,18 @@ git-tree-sha1 = "7c4e66c47848562003250f28b579c584e55becc0"
 uuid = "d41bc354-129a-5804-8e4c-c37616107c6c"
 version = "7.6.1"
 
+[[NLopt]]
+deps = ["MathProgBase", "NLopt_jll"]
+git-tree-sha1 = "48d523294d66f34d012e224ec3082d35c395ebd2"
+uuid = "76087f3c-5699-56af-9a33-bf431cd00edd"
+version = "0.6.0"
+
+[[NLopt_jll]]
+deps = ["Libdl", "Pkg"]
+git-tree-sha1 = "bdf1dcb42a7ef8eaf60b7d101a25136b213a28e1"
+uuid = "079eb43e-fd8e-5478-9966-2cf3e3edb778"
+version = "2.6.2+0"
+
 [[NaNMath]]
 git-tree-sha1 = "928b8ca9b2791081dc71a51c55347c27c618760f"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
@@ -284,9 +302,9 @@ version = "0.3.3"
 
 [[OpenBLAS_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
-git-tree-sha1 = "1887096f6897306a4662f7c5af936da7d5d1a062"
+git-tree-sha1 = "0c922fd9634e358622e333fc58de61f05a048492"
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.9+4"
+version = "0.3.9+5"
 
 [[OpenSpecFun_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
@@ -503,6 +521,6 @@ version = "0.4.0"
 
 [[Zlib_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "a2e0d558f6031002e380a90613b199e37a8565bf"
+git-tree-sha1 = "622d8b6dc0c7e8029f17127703de9819134d1b71"
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
-version = "1.2.11+10"
+version = "1.2.11+14"
