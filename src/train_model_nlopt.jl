@@ -20,7 +20,7 @@ function trainmodel(configfile::String)
     d   = YAML.load_file(configfile)
     cfg = Config(d)
     name2prior = construct_name2prior(d["unknowns"])
-    nparams = size(name2prior, 1)
+    nparams    = size(name2prior, 1)
 
     @info "$(now()) Preparing training data"
     y = prepare_training_data(d)
@@ -40,15 +40,18 @@ function trainmodel(configfile::String)
     store[:trace]      = NamedTuple{(:loss, :x), Tuple{Float64,Vector{Float64}}}[]
 
     @info "$(now()) Training model"
-    opt = Opt(:GN_DIRECT, nparams)
+    #opt = Opt(:GN_DIRECT_L, nparams)
+    opt = Opt(:GN_CRS2_LM, nparams)
+    #opt = Opt(:G_MLSL_LDS, nparams)
+    #opt.local_optimizer = Opt(:LN_SBPLX, nparams)
     opt.min_objective = loss
     setbounds!(opt, name2prior)  # Set opt.lower_bounds and opt.upper_bounds
     for (k, v) in d["options"]
         setproperty!(opt, Symbol(k), v)
     end
 theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
-#theta0 = [mean(Distributions.params(prior)) for (name, prior) in name2prior]
-    (fmin, xmin, ret) = optimize!(opt, theta0)
+#theta0 = [mean(prior) for (name, prior) in name2prior]
+    (fmin, xmin, ret) = optimize(opt, theta0)
     @info "$(now()) Return code = $(ret)"
 println("fmin = $(fmin)")
 println("xmin = $(xmin)")

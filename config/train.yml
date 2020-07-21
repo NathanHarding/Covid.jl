@@ -1,8 +1,8 @@
 demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
-lastday:  2021-03-23  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
-nruns: 200
+lastday:  2020-03-23  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
+nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
 forcing:
@@ -55,9 +55,9 @@ quarantine_policy:
 ################################################################################
 # Config specifically for training
 
-#training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
 training_data:
-    filename: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
+#    filename: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
+    filename: "data\\input\\training_data.csv"
     datecolumn: diagnosis_date
     dateformat: "dd/mm/yyyy"
 
