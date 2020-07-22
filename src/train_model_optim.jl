@@ -25,7 +25,7 @@ function trainmodel(configfile::String)
     y = prepare_training_data(d)
 
     @info "$(now()) Initialising model"
-    params = construct_params(cfg.paramsfile, cfg.demographics.params)
+    params = construct_params(cfg.paramsfile)
     model  = init_model(params, cfg)
 
     @info "$(now()) Populating convenience store"
@@ -42,8 +42,10 @@ function trainmodel(configfile::String)
     nparams = size(name2prior, 1)
     theta0  = fill(0.0, nparams)
 theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
+#theta0 = [mean(prior) for (name, prior) in name2prior]
+    lb, ub  = getbounds(name2prior)
     opts    = Optim.Options(; Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])...)
-    result  = optimize(loss, theta0, NelderMead(), opts)
+    result  = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9), opts)
 
     @info "$(now()) Extracting result"
     colnames = [Symbol(colname) for (colname, prior) in name2prior]
@@ -170,24 +172,45 @@ end
 ################################################################################
 # Utils
 
-function construct_params(paramsfile::String, demographics_params::Dict{Symbol, Float64})
-    tbl    = DataFrame(CSV.File(paramsfile))
-    params = Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
-    merge!(params, demographics_params)  # Merge d2 into d1 and return d1 (d1 is enlarged, d2 remains unchanged)
+function construct_params(paramsfile::String)
+    tbl = DataFrame(CSV.File(paramsfile))
+    Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
 end
 
 "Returns: Vector{Int} containing the number of new cases"
 function prepare_training_data(d)
-    data      = DataFrame(CSV.File(d["training_data"]))  # Columns: date, newpositives, positives
-    date2y    = Dict(date => y for (date, y) in zip(data.date, data.newpositives))
+    # Import training data
+    opts    = d["training_data"]
+    data    = DataFrame(CSV.File(opts["filename"]))
+    datecol = Symbol(opts["datecolumn"])
+    datefmt = opts["dateformat"]
+    data[!, datecol] = [Date(x, datefmt) for x in data[!, datecol]]
+    sort!(data, [datecol])
+    
+    # Format result    
     firstday  = Date(d["firstday"])
     lastday   = Date(d["lastday"])
     daterange = firstday:Day(1):(lastday - Day(1))
     result    = fill(0, length(daterange))
     for (i, date) in enumerate(daterange)
-        result[i] = haskey(date2y, date) ? date2y[date] : 0
+        v = view(data, data[!, datecol] .== date, :)
+        result[i] = size(v, 1)
     end
     result
+end
+
+function getbounds(name2prior)
+    nparams = size(name2prior, 1)
+    lb = fill(0.0, nparams)
+    ub = fill(0.0, nparams)
+    i  = 0
+    for (name, prior) in name2prior
+        i    += 1
+        a, b  = Distributions.params(prior)
+        lb[i] = a
+        ub[i] = b
+    end
+    lb, ub
 end
 
 function construct_result(trace, colnames)
@@ -199,7 +222,7 @@ function construct_result(trace, colnames)
     end
 
     # Second pass: Group duplicate particles
-    result = DataFrame(fill(Float64, length(colnames) + 1), vcat(:loss, colnames), 0)
+    result = DataFrame(fill(Float64, 1 + length(colnames)), vcat(:loss, colnames), 0)
     for subdata in groupby(temp, colnames)
         row = Dict{Symbol, Float64}(:loss => mean(subdata.loss))
         for colname in colnames

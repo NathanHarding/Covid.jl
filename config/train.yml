@@ -56,7 +56,6 @@ quarantine_policy:
 # Config specifically for training
 
 training_data:
-#    filename: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
     filename: "data\\input\\training_data.csv"
     datecolumn: diagnosis_date
     dateformat: "dd/mm/yyyy"
@@ -68,12 +67,10 @@ options:
     #parallel: false
     #verbose: 2
     #order: 2
-    #f_calls_limit: 100   # Soft limit
-    #time_limit: 120  # Soft limit
+    f_calls_limit: 100   # Soft limit
+    time_limit: 120  # Soft limit
     #iterations: 5
-    #f_tol: 0.1  # Relative error of objective function
-    xtol_abs: 0.0001
-    maxtime: 120
+    f_tol: 0.1  # Relative error of objective function
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:

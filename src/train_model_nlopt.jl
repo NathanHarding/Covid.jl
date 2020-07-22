@@ -207,6 +207,12 @@ end
 
 "Set opt.lower_bounds and opt.upper_bounds according to prior"
 function setbounds!(opt, name2prior)
+    lb, ub = getbounds(name2prior)
+    opt.lower_bounds = lb
+    opt.upper_bounds = ub
+end
+
+function getbounds(name2prior)
     nparams = size(name2prior, 1)
     lb = fill(0.0, nparams)
     ub = fill(0.0, nparams)
@@ -217,8 +223,7 @@ function setbounds!(opt, name2prior)
         lb[i] = a
         ub[i] = b
     end
-    opt.lower_bounds = lb
-    opt.upper_bounds = ub
+    lb, ub
 end
 
 function construct_result(trace, colnames)
