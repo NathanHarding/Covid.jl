@@ -8,7 +8,7 @@ duration|age ~ Poisson(lambda(age)), where lambda(age) = exp(b0 + b1*age)
 """
 module abm
 
-export Config, metrics, update_policies!, init_model, reset_model!, initialise_metrics, reset_metrics!, apply_forcing!, # API required from any model module
+export Config, metrics, update_policies!, init_model, reset_model!, initialise_metrics, reset_metrics!, sum_metrics, apply_forcing!, # API required from any model module
        init_output, reset_output!, execute_events!, metrics_to_output!  # Re-exported from the core module as is
 
 using DataFrames
@@ -117,8 +117,21 @@ function reset_metrics!(model)
     end
     people = model.agents
     for person in people
-        metrics[person.address][person.state.status] += 1
+        address = person.address
+        if !haskey(metrics, address)
+            metrics[address] = metrics_sa2()
+        end
+        metrics[address][person.state.status] += 1
     end
+end
+
+"Sum over address: sum(metrics[address][k])"
+function sum_metrics(metrics, k::Symbol)
+    result = 0
+    for (address, m) in metrics
+        result += m[k]
+    end
+    result
 end
 
 "Remove the agent's old state from metrics"

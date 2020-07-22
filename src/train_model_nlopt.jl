@@ -7,7 +7,7 @@ using DataFrames
 using Dates
 using Distributions
 using Logging
-using Optim
+using NLopt
 using YAML
 
 include("abm.jl")  # Depends on: core, config, contacts
@@ -20,6 +20,7 @@ function trainmodel(configfile::String)
     d   = YAML.load_file(configfile)
     cfg = Config(d)
     name2prior = construct_name2prior(d["unknowns"])
+    nparams    = size(name2prior, 1)
 
     @info "$(now()) Preparing training data"
     y = prepare_training_data(d)
@@ -36,17 +37,25 @@ function trainmodel(configfile::String)
     store[:config]     = cfg
     store[:metrics]    = metrics
     store[:name2prior] = name2prior
-    store[:trace]      = NamedTuple{(:loss, :x),Tuple{Float64,Vector{Float64}}}[]
+    store[:trace]      = NamedTuple{(:loss, :x), Tuple{Float64,Vector{Float64}}}[]
 
     @info "$(now()) Training model"
-    lb, ub = getbounds(name2prior)
-    theta0 = [mean(prior) for (name, prior) in name2prior]
-    if isnothing(d["options"])
-        result = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9))
-    else
-        opts   = Optim.Options(; Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])...)
-        result = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9), opts)
+    opt = Opt(:GN_DIRECT_L, nparams)
+    #opt = Opt(:GN_CRS2_LM, nparams)
+    #opt = Opt(:G_MLSL_LDS, nparams)
+    #opt.local_optimizer = Opt(:LN_SBPLX, nparams)
+    opt.min_objective = loss
+    setbounds!(opt, name2prior)  # Set opt.lower_bounds and opt.upper_bounds
+    if !isnothing(d["options"])
+        for (k, v) in d["options"]
+            setproperty!(opt, Symbol(k), v)
+        end
     end
+    theta0 = [mean(prior) for (name, prior) in name2prior]
+    (fmin, xmin, ret) = optimize(opt, theta0)
+    @info "$(now()) Return code = $(ret)"
+println("fmin = $(fmin)")
+println("xmin = $(xmin)")
 
     @info "$(now()) Extracting result"
     colnames = [Symbol(colname) for (colname, prior) in name2prior]
@@ -134,7 +143,7 @@ end
 ################################################################################
 # Loss function
 
-function loss(particle)
+function loss(particle, grad)
     particle_to_params_and_policies!(particle, store[:name2prior], store[:config], store[:model].params)
     yhat = manyruns(store[:model], store[:config], store[:metrics], store[:ymax])
     if isfinite(yhat[1, 1])
@@ -196,6 +205,13 @@ function prepare_training_data(d)
         result[i] = size(v, 1)
     end
     result
+end
+
+"Set opt.lower_bounds and opt.upper_bounds according to prior"
+function setbounds!(opt, name2prior)
+    lb, ub = getbounds(name2prior)
+    opt.lower_bounds = lb
+    opt.upper_bounds = ub
 end
 
 function getbounds(name2prior)

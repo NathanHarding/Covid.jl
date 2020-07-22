@@ -1,24 +1,7 @@
-demographics:
-    input_datadir:  "../Demographics.jl/test/data/input"   # When testing this dir is Demographics.jl/test/data/input
-    output_datadir: "../Demographics.jl/test/data/output"  # When testing this dir is Demographics.jl/test/data/output
-    input_datafiles:
-        age_distribution:             "population_by_age.tsv"
-        workplace_distribution:       "workplace_by_size.tsv"
-        primaryschool_distribution:   "avg_yearlevel_size_distribution_primary.tsv"
-        secondaryschool_distribution: "avg_yearlevel_size_distribution_secondary.tsv"
-        household_distribution:       "households.tsv"
-    params: [
-        {name: n_social_contacts,    value: 35, description: Number of social contacts per person},
-        {name: n_community_contacts, value: 20, description: Number of community contacts per person},
-        {name: n_workplace_contacts, value: 20, description: Number of non-school workplace contacts per person},
-        {name: ncontacts_s2s,        value: 15, description: Student-to-student contacts per student},
-        {name: ncontacts_t2t,        value: 10, description: Teacher-to-teacher contacts per student},
-        {name: ncontacts_t2s,        value: 20, description: Teacher-to-student contacts per teacher}
-    ]
-
+demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
-firstday: 2020-01-18  # Simulation starts at 12am.
-lastday:  2020-03-23  # Simulation finishes at 12am
+firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
+lastday:  2020-03-23  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
 nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
@@ -72,20 +55,17 @@ quarantine_policy:
 ################################################################################
 # Config specifically for training
 
-#training_data: "C:\\Users\\jlaw1812\\data\\covid-abm\\input\\training_data.csv"
-training_data: "C:\\projects\\data\\dhhs\\covid-abm\\input\\training_data.csv"
+training_data:
+    filename: "data\\input\\training_data.csv"
+    datecolumn: diagnosis_date
+    dateformat: "dd/mm/yyyy"
 
 options:
-    #std: 3.0  # Standard deviation of the loss
-    #nparticles: 50
-    #generations: 50
-    #parallel: false
-    #verbose: 2
-    #order: 2
     #f_calls_limit: 100   # Soft limit
-    time_limit: 120  # Soft limit
-    #iterations: 5
-    f_tol: 0.1  # Relative error of objective function
+    time_limit: 3600  # Soft limit
+    #f_tol: 0.1  # Relative error of objective function
+    #maxeval: 100   # NLopt
+    #maxtime: 120  # NLopt
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:
