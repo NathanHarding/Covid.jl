@@ -40,8 +40,8 @@ function trainmodel(configfile::String)
     store[:trace]      = NamedTuple{(:loss, :x), Tuple{Float64,Vector{Float64}}}[]
 
     @info "$(now()) Training model"
-    #opt = Opt(:GN_DIRECT_L, nparams)
-    opt = Opt(:GN_CRS2_LM, nparams)
+    opt = Opt(:GN_DIRECT_L, nparams)
+    #opt = Opt(:GN_CRS2_LM, nparams)
     #opt = Opt(:G_MLSL_LDS, nparams)
     #opt.local_optimizer = Opt(:LN_SBPLX, nparams)
     opt.min_objective = loss
@@ -51,8 +51,7 @@ function trainmodel(configfile::String)
             setproperty!(opt, Symbol(k), v)
         end
     end
-theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
-#theta0 = [mean(prior) for (name, prior) in name2prior]
+    theta0 = [mean(prior) for (name, prior) in name2prior]
     (fmin, xmin, ret) = optimize(opt, theta0)
     @info "$(now()) Return code = $(ret)"
 println("fmin = $(fmin)")

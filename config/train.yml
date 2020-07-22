@@ -61,16 +61,11 @@ training_data:
     dateformat: "dd/mm/yyyy"
 
 options:
-    #std: 3.0  # Standard deviation of the loss
-    #nparticles: 50
-    #generations: 50
-    #parallel: false
-    #verbose: 2
-    #order: 2
-    f_calls_limit: 100   # Soft limit
-    #time_limit: 120  # Soft limit
-    #iterations: 5
-    f_tol: 0.1  # Relative error of objective function
+    #f_calls_limit: 100   # Soft limit
+    time_limit: 3600  # Soft limit
+    #f_tol: 0.1  # Relative error of objective function
+    #maxeval: 100   # NLopt
+    #maxtime: 120  # NLopt
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:

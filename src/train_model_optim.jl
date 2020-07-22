@@ -39,11 +39,8 @@ function trainmodel(configfile::String)
     store[:trace]      = NamedTuple{(:loss, :x),Tuple{Float64,Vector{Float64}}}[]
 
     @info "$(now()) Training model"
-    nparams = size(name2prior, 1)
-    lb, ub  = getbounds(name2prior)
-    theta0  = fill(0.0, nparams)
-theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
-#theta0 = [mean(prior) for (name, prior) in name2prior]
+    lb, ub = getbounds(name2prior)
+    theta0 = [mean(prior) for (name, prior) in name2prior]
     if isnothing(d["options"])
         result = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9))
     else
