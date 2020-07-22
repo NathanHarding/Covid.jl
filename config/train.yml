@@ -4,6 +4,7 @@ firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:
 lastday:  2020-03-23  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
 nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
+cumsum_population: "..\\Demographics.jl\\test\\data\\input\\population_by_SA2.tsv"
 
 forcing:
     2020-01-18: {Any: {E: 10}}
