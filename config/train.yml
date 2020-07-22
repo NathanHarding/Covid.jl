@@ -68,7 +68,7 @@ options:
     #verbose: 2
     #order: 2
     f_calls_limit: 100   # Soft limit
-    time_limit: 120  # Soft limit
+    #time_limit: 120  # Soft limit
     #iterations: 5
     f_tol: 0.1  # Relative error of objective function
 

@@ -46,8 +46,10 @@ function trainmodel(configfile::String)
     #opt.local_optimizer = Opt(:LN_SBPLX, nparams)
     opt.min_objective = loss
     setbounds!(opt, name2prior)  # Set opt.lower_bounds and opt.upper_bounds
-    for (k, v) in d["options"]
-        setproperty!(opt, Symbol(k), v)
+    if !isnothing(d["options"])
+        for (k, v) in d["options"]
+            setproperty!(opt, Symbol(k), v)
+        end
     end
 theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
 #theta0 = [mean(prior) for (name, prior) in name2prior]
@@ -112,8 +114,9 @@ end
 # Model run
 
 function manyruns(model, cfg, metrics, ymax)
-    daterange = cfg.firstday:Day(1):cfg.lastday
-    result    = fill(0, length(daterange) - 1, cfg.nruns)  # Each column contains the time seris of 1 run
+    firstday  = cfg.firstday
+    daterange = firstday:Day(1):cfg.lastday
+    result    = fill(0, length(daterange), cfg.nruns)  # Each column contains the time series of 1 run
     agents    = model.agents
     for r in 1:cfg.nruns
         prev_totalpositives = 0  # Cumulative number of positives as of 11.59pm on date
@@ -121,12 +124,12 @@ function manyruns(model, cfg, metrics, ymax)
         reset_metrics!(model)
         for (i, date) in enumerate(daterange)
             model.date = date
-            update_policies!(cfg, date)
+            update_policies!(cfg, date, date > firstday)
             apply_forcing!(cfg.forcing, model, date)
-            execute_events!(model.schedule[date], agents, model, date, metrics)
+            execute_events!(model.schedule, date, agents, model, metrics)
 
             # Collect result
-            totalpositives = metrics[:positives]
+            totalpositives = sum_metrics(metrics, :positives)  # Sum over address: metrics[address][:positives]
             new_positives  = totalpositives - prev_totalpositives
             if new_positives > 2 * ymax  # EARLY STOPPING CRITERION: Too many cases
                 return fill(Inf, 1, 1)   # Arbitrary 2D array containing large distances

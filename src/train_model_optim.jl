@@ -40,12 +40,16 @@ function trainmodel(configfile::String)
 
     @info "$(now()) Training model"
     nparams = size(name2prior, 1)
+    lb, ub  = getbounds(name2prior)
     theta0  = fill(0.0, nparams)
 theta0 = [0.034, 0.5, 0.2, 0.2, 0.1, 0.1, 0.2]
 #theta0 = [mean(prior) for (name, prior) in name2prior]
-    lb, ub  = getbounds(name2prior)
-    opts    = Optim.Options(; Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])...)
-    result  = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9), opts)
+    if isnothing(d["options"])
+        result = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9))
+    else
+        opts   = Optim.Options(; Dict{Symbol, Any}(Symbol(k) => v for (k, v) in d["options"])...)
+        result = optimize(loss, lb, ub, theta0, SAMIN(; rt=0.9), opts)
+    end
 
     @info "$(now()) Extracting result"
     colnames = [Symbol(colname) for (colname, prior) in name2prior]
@@ -104,23 +108,21 @@ end
 
 function manyruns(model, cfg, metrics, ymax)
     firstday  = cfg.firstday
-    lastday   = cfg.lastday
+    daterange = firstday:Day(1):cfg.lastday
+    result    = fill(0, length(daterange), cfg.nruns)  # Each column contains the time series of 1 run
     agents    = model.agents
-    daterange = firstday:Day(1):lastday
-    result    = fill(0, length(daterange) - 1, cfg.nruns)  # Each column contains the time seris of 1 run
     for r in 1:cfg.nruns
         prev_totalpositives = 0  # Cumulative number of positives as of 11.59pm on date
         reset_model!(model, cfg)
         reset_metrics!(model)
         for (i, date) in enumerate(daterange)
             model.date = date
-            date == lastday && break
-            update_policies!(cfg, date)
+            update_policies!(cfg, date, date > firstday)
             apply_forcing!(cfg.forcing, model, date)
-            execute_events!(model.schedule[date], agents, model, date, metrics)
+            execute_events!(model.schedule, date, agents, model, metrics)
 
             # Collect result
-            totalpositives = metrics[:positives]
+            totalpositives = sum_metrics(metrics, :positives)  # Sum over address: metrics[address][:positives]
             new_positives  = totalpositives - prev_totalpositives
             if new_positives > 2 * ymax  # EARLY STOPPING CRITERION: Too many cases
                 return fill(Inf, 1, 1)   # Arbitrary 2D array containing large distances
