@@ -6,11 +6,11 @@ nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 
 forcing:
-    2020-01-18: {E: 10}
-    2020-01-25: {E: 10}  # At 00:00:01 change 1 person from Susceptible to Exposed
-    2020-02-01: {E: 10}
-    2020-02-08: {E: 10}
-    2020-02-15: {E: 10}
+    2020-01-18: {Any: {E: 10}}
+    2020-01-25: {Any: {E: 10}} # At 00:00:01 change 1 person from Susceptible to Exposed
+    2020-02-01: {Any: {E: 10}}
+    2020-02-08: {Any: {E: 10}}
+    2020-02-15: {Any: {E: 10}}
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
