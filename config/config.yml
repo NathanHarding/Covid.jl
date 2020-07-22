@@ -1,22 +1,27 @@
-demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
-output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
+demographics_datadir: "..\\Demographics.jl\\test\\data\\output"  # Directory containing saved population data. people = load(demographics_datadir)
+output_directory: "data\\output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
-lastday:  2021-06-30  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
-nruns: 200
+lastday:  2020-02-10  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
+nruns: 10
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
+cumsum_population: "..\\Demographics.jl\\test\\data\\input\\population_by_SA2.tsv"
 
 forcing:
-    2020-01-18: {E: 10}
-    2020-01-25: {E: 10}
-    2020-02-01: {E: 10}
-    2020-02-08: {E: 10}
-    2020-02-15: {E: 10}
-    2020-04-17: {E: 80}    # Cedar Meats outbreak
-    2020-04-24: {E: 80}    # Fawkner McDonalds outbreak
-    2020-06-01: {E: 100}   # Security guard breaches, family gatherings, localised school outbreaks
-    2020-06-06: {E: 500}   # BLM protest Melbourne
-    2020-06-08: {E: 100}   # Security guard breaches, family gatherings, localised school outbreaks
-    2020-06-15: {E: 100}   # Security guard breaches, family gatherings, localised school outbreaks
+
+    # 2020-02-01: {213011328: {E : 20 }, 
+    #              213021343: {E : 20 , R : 500},
+    #              313011328: {E : 20 }}
+    2020-01-18: {Any : {E: 10}}
+    2020-01-25: {Any : {E: 10}}
+    2020-02-01: {Any : {E: 10}}
+    2020-02-08: {Any : {E: 10}}
+    2020-02-15: {Any : {E: 10}}
+    2020-04-17: {Any : {E: 80}}    # Cedar Meats outbreak
+    2020-04-24: {Any : {E: 80}}    # Fawkner McDonalds outbreak
+    2020-06-01: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
+    2020-06-06: {Any : {E: 500}}   # BLM protest Melbourne
+    2020-06-08: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
+    2020-06-15: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)

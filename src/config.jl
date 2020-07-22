@@ -4,6 +4,8 @@ export Config, DistancingPolicy, TestingPolicy, TracingPolicy, QuarantinePolicy
 
 using Dates
 using YAML
+using CSV
+using DataFrames
 
 ################################################################################
 "Updated over time"
@@ -146,13 +148,14 @@ struct Config
     lastday::Date   # Simulation finishes at 12am
     nruns::Int
     paramsfile::String
-    forcing::Dict{Date, Dict{Symbol, Int}}            # date => {status => count(status)}
+    forcing::Dict{Date, Dict{Any,Dict{Symbol, Int}}}            # date => {SA2 => {status => count(status)}}
     t2distancingpolicy::Dict{Date, DistancingPolicy}  # t => distancing_policy
     t2testingpolicy::Dict{Date, TestingPolicy}        # t => testing_policy
     t2tracingpolicy::Dict{Date, TracingPolicy}        # t => tracing_policy
     t2quarantinepolicy::Dict{Date, QuarantinePolicy}  # t => quarantine_policy
+    cumsum_population::DataFrame
 
-    function Config(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    function Config(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy,cumsum_population)
         !isdir(dirname(demographics_datadir)) && error("The directory containing the output directory does not exist: $(dirname(demographics_datadir))")
         !isdir(dirname(outdir)) && error("The directory containing the output directory does not exist: $(dirname(outdir))")
         if !isdir(outdir)
@@ -165,12 +168,14 @@ struct Config
         !isfile(paramsfile) && error("The file containing model parameters does not exist: $(paramsfile)")
         registered_statuses = Set([:S, :E, :IA, :IS, :W, :ICU, :V, :R, :D])
         for (dt, status2n) in forcing
-            for (status, n) in status2n
-                !in(status, registered_statuses) && error("Unknown status $(status)")
-                n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
+            for (SA2,seed) in status2n
+                for (status, n) in seed
+                    !in(status, registered_statuses) && error("Unknown status $(status)")
+                    n < 0 && error("Initial count for status $(status) is $(n). Must be non-negative.")
+                end
             end
         end
-        new(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+        new(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy,cumsum_population)
     end
 end
 
@@ -190,7 +195,8 @@ function Config(d::Dict)
     t2testingpolicy    = isnothing(d["testing_policy"])    ? Dict{Date, TestingPolicy}()    : Dict(Date(dt) => TestingPolicy(policy)    for (dt, policy) in d["testing_policy"])
     t2tracingpolicy    = isnothing(d["tracing_policy"])    ? Dict{Date, TracingPolicy}()    : Dict(Date(dt) => TracingPolicy(policy)    for (dt, policy) in d["tracing_policy"])
     t2quarantinepolicy = isnothing(d["quarantine_policy"]) ? Dict{Date, QuarantinePolicy}() : Dict(Date(dt) => QuarantinePolicy(policy) for (dt, policy) in d["quarantine_policy"])
-    Config(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy)
+    cumsum_population  = DataFrame(CSV.File(d["cumsum_population"]))
+    Config(demographics_datadir, outdir, firstday, lastday, nruns, paramsfile, forcing, t2distancingpolicy, t2testingpolicy, t2tracingpolicy, t2quarantinepolicy,cumsum_population)
 end
 
 "Constructs a valid file or directory path by ensuring the correct separator for the operating system."
@@ -200,9 +206,12 @@ function constructpath(s::String, sep::Char)
 end
 
 function construct_forcing(d::Dict)
-    result = Dict{Date, Dict{Symbol, Int}}()
+    result = Dict{Date, Dict{Any,Dict{Symbol, Int}}}()
     for (dt, status2n) in d
-        result[Date(dt)] = Dict(Symbol(status) => n for (status, n) in status2n)
+        result[Date(dt)] = Dict{Any,Dict{Symbol, Int}}()
+        for (SA2,seed) in status2n
+            result[Date(dt)][SA2] = Dict(Symbol(status) => n for (status, n) in seed)
+        end
     end
     result
 end

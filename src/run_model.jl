@@ -39,7 +39,7 @@ function runmodel(configfile::String)
         for date in firstday:Day(1):lastday
             model.date = date
             update_policies!(cfg, date, date > firstday)
-            apply_forcing!(cfg.forcing, model, date)
+            apply_forcing!(cfg.forcing, model, date,cfg.cumsum_population)
             execute_events!(model.schedule, date, agents, model, metrics)
             metrics_to_output!(metrics, output, r, date)  # System at 11:59pm
         end

@@ -15,6 +15,7 @@ using DataFrames
 using Dates
 using Demographics
 using Distributions
+using CSV
 
 include("core.jl")
 using .core
@@ -151,40 +152,51 @@ function update_lb2dist!(params)
 end
 
 "Forcibly change a person's status from Susceptible according to cfg.forcing[dt]"
-function apply_forcing!(forcing, model, dt)
+function apply_forcing!(forcing, model, dt,cumsum_population)
     !haskey(forcing, dt) && return nothing
-    status2n = forcing[dt]
+    seeds_today = forcing[dt]
     agents   = model.agents
     npeople  = length(agents)
-    rg = 1:npeople
-    for (status, n) in status2n
-        nsuccesses = 0
-        jmax = 10 * npeople  # Ceiling on the number of iterations
-        for j = 1:jmax
-            id = rand(rg)
-            agent = agents[id]
-            agent.state.status != :S && continue  # This person's status is already not Susceptible
-            if status == :E
-                execute_event!(to_E!, agent, model, dt, metrics)
-            elseif status == :IA
-                execute_event!(to_IA!, agent, model, dt, metrics)
-            elseif status == :IS
-                execute_event!(to_IS!, agent, model, dt, metrics)
-            elseif status == :H
-                execute_event!(to_H!, agent, model, dt, metrics)
-            elseif status == :W
-                execute_event!(to_W!, agent, model, dt, metrics)
-            elseif status == :ICU
-                execute_event!(to_ICU!, agent, model, dt, metrics)
-            elseif status == :V
-                execute_event!(to_V!, agent, model, dt, metrics)
-            elseif status == :R
-                execute_event!(to_R!, agent, model, dt, metrics)
-            elseif status == :D
-                execute_event!(to_D!, agent, model, dt, metrics)
+    for (SA2,seed) in seeds_today
+        if SA2 == "Any"
+            rg = 1:npeople
+        elseif SA2 in cumsum_population.SA2_code
+            (idx1,idx2) = get_firstlast_index_SA2(SA2,cumsum_population)
+            rg = idx1:idx2
+        else
+            @info "Attempted to seed invalid SA2: $(SA2)"
+
+        end
+
+        for (status,n) in seed
+            nsuccesses = 0
+            jmax = 10 * npeople  # Ceiling on the number of iterations
+            for j = 1:jmax
+                id = rand(rg)
+                agent = agents[id]
+                agent.state.status != :S && continue  # This person's status is already not Susceptible
+                if status == :E
+                    execute_event!(to_E!, agent, model, dt, metrics)
+                elseif status == :IA
+                    execute_event!(to_IA!, agent, model, dt, metrics)
+                elseif status == :IS
+                    execute_event!(to_IS!, agent, model, dt, metrics)
+                elseif status == :H
+                    execute_event!(to_H!, agent, model, dt, metrics)
+                elseif status == :W
+                    execute_event!(to_W!, agent, model, dt, metrics)
+                elseif status == :ICU
+                    execute_event!(to_ICU!, agent, model, dt, metrics)
+                elseif status == :V
+                    execute_event!(to_V!, agent, model, dt, metrics)
+                elseif status == :R
+                    execute_event!(to_R!, agent, model, dt, metrics)
+                elseif status == :D
+                    execute_event!(to_D!, agent, model, dt, metrics)
+                end
+                nsuccesses += 1
+                nsuccesses == n && break
             end
-            nsuccesses += 1
-            nsuccesses == n && break
         end
     end
     nothing
@@ -608,6 +620,19 @@ function draw_most_severe_state(age)
     agegroup_lb = min(80, 10 * div(age, 10))
     d = lb2dist[agegroup_lb]  # Age-specific Categorical distribution
     most_severe_states[rand(d)]
+end
+
+function get_firstlast_index_SA2(SA2,data::DataFrame)
+    list_idx = findfirst(x->x == SA2,data.SA2_code)
+    if list_idx == 1
+        idx1 = 1
+        idx2 = data.cumsum_population[list_idx]
+    else
+        idx1 = data.cumsum_population[list_idx-1]
+        idx2 = data.cumsum_population[list_idx]
+    end
+    result = (idx1,idx2)
+    result
 end
 
 p_infect(params) = params[:p_infect]  # Pr(Person infects contact | Person makes contact with contact)
