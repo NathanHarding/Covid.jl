@@ -56,24 +56,25 @@ function init_output(metrics, firstday::Date, lastday::Date)
     result
 end
 
-function metrics_to_output!(metrics, output, run_number::Int, dt::Date)
-    # Init results for total over all addresses ("address" = 0)
-    i1 = findfirst(isequal(0), output.run)
-    output[i1, :run]  = run_number
-    output[i1, :date] = dt
+function metrics_to_output!(metrics, output, run_number::Int, dt::Date, i_output::Int)
+    # Init results for total over all addresses (address == 0)
+    i_total = i_output + 1  # i_total is the index of the first empty row (i_output is the index of the last non-empty row)
+    output[i_total, :run]  = run_number
+    output[i_total, :date] = dt
 
     # Results by address
-    i = i1
+    i_output = i_total
     for (address, m) in metrics
-        i += 1
-        output[i, :run]     = run_number
-        output[i, :date]    = dt
-        output[i, :address] = address
+        i_output += 1
+        output[i_output, :run]     = run_number
+        output[i_output, :date]    = dt
+        output[i_output, :address] = address
         for (colname, val) in m
-            output[i,  colname]  = val
-            output[i1, colname] += val  # Populate total over all addresses
+            output[i_output, colname]  = val
+            output[i_total,  colname] += val  # Populate total over all addresses
         end
     end
+    i_output, i_total
 end
 
 function reset_output!(output::DataFrame)

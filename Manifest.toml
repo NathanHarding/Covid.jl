@@ -63,18 +63,6 @@ git-tree-sha1 = "7c4f882c41faa72118841185afc58a2eb00ef612"
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "0.3.3+0"
 
-[[Cuba]]
-deps = ["Cuba_jll", "LinearAlgebra"]
-git-tree-sha1 = "2b928680d07cbc5e59ba3d42ffceecbbfc25faed"
-uuid = "8a292aeb-7a57-582c-b821-06e4c11590b1"
-version = "2.1.0"
-
-[[Cuba_jll]]
-deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "7bbbbdf8c5a0a9b270a8d266f95e00738f3abcce"
-uuid = "3bed1096-5ab2-53a1-92e2-6c1cc31d0f4b"
-version = "4.2.0+1"
-
 [[DataAPI]]
 git-tree-sha1 = "674b67f344687a88310213ddfa8a2b3c76cc4252"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
@@ -135,12 +123,6 @@ git-tree-sha1 = "c4ed10355637fcb0725dc6a27060f74df24f13cd"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
 version = "0.23.2"
 
-[[FastGaussQuadrature]]
-deps = ["LinearAlgebra", "SpecialFunctions"]
-git-tree-sha1 = "c139e3f4c75dc489a493627c7ee44befc177420f"
-uuid = "442a2c76-b920-505d-bb47-c5924d526838"
-version = "0.4.2"
-
 [[FileIO]]
 deps = ["Pkg"]
 git-tree-sha1 = "202335fd24c2776493e198d6c66a6d910400a895"
@@ -190,11 +172,6 @@ git-tree-sha1 = "15732c475062348b0165684ffe28e85ea8396afc"
 uuid = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
 version = "1.0.0"
 
-[[IterTools]]
-git-tree-sha1 = "05110a2ab1fc5f932622ffea2a003221f4782c18"
-uuid = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
-version = "1.3.0"
-
 [[IteratorInterfaceExtensions]]
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
@@ -211,14 +188,6 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "b34d7cef7b337321e97d22242c3c2b91f476748e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.0"
-
-[[KissABC]]
-deps = ["Distributions", "ProgressMeter", "Random"]
-git-tree-sha1 = "7c4323b3e5c096765d876e50cf16bdcbd8e448b9"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaApproxInference/KissABC.jl"
-uuid = "9c9dad79-530a-4643-a18b-2704674d4108"
-version = "2.0.0"
 
 [[LibGit2]]
 deps = ["Printf"]
@@ -362,12 +331,6 @@ version = "0.2.3"
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
-[[ProgressMeter]]
-deps = ["Distributed", "Printf"]
-git-tree-sha1 = "3e1784c27847bba115815d4d4e668b99873985e5"
-uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "1.3.1"
-
 [[QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
 git-tree-sha1 = "dc84e810393cfc6294248c9032a9cdacc14a3db4"
@@ -434,12 +397,6 @@ version = "0.3.1"
 [[SparseArrays]]
 deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-
-[[SparseGrids]]
-deps = ["FastGaussQuadrature", "IterTools", "LinearAlgebra", "Test"]
-git-tree-sha1 = "a6f0f2121aa009a185c450602325ceff0b11de50"
-uuid = "bafbe729-afc6-5148-bb4f-226bf3d46895"
-version = "1.1.0"
 
 [[SpecialFunctions]]
 deps = ["OpenSpecFun_jll"]
