@@ -58,6 +58,7 @@ quarantine_policy:
 training_data:
     filename: "data\\input\\training_data.csv"
     datecolumn: diagnosis_date
+    deathdate:  Date_of_death
     dateformat: "dd/mm/yyyy"
 
 options:
@@ -65,7 +66,7 @@ options:
     #time_limit: 3600  # Optim: Soft limit
     #f_tol: 0.1  # Optim: Relative error of objective function
     #maxeval: 100   # NLopt
-    maxtime: 3600  # NLopt
+    maxtime: 7200  # NLopt
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:

@@ -19,6 +19,7 @@ function trainmodel(configfile::String)
     @info "$(now()) Configuring model"
     d   = YAML.load_file(configfile)
     cfg = Config(d)
+    daterange  = cfg.firstday:Day(1):cfg.lastday
     name2prior = construct_name2prior(d["unknowns"])
     nparams    = size(name2prior, 1)
 
@@ -29,23 +30,34 @@ function trainmodel(configfile::String)
     params = construct_params(cfg.paramsfile)
     model  = init_model(params, cfg)
 
+    @info "$(now()) Initialising metrics"
+    initialise_metrics(model.agents)
+
     @info "$(now()) Populating convenience store"
+    store[:totalpositives] = sum(y.newpositives)  # Final cumulative number of detected cases
+    store[:totaldeaths]    = sum(y.newdeaths)     # Final cumulative number of deaths
     store[:y]          = y
-    store[:ymax]       = maximum(y)
-    store[:maxloss]    = rmse(y, fill(0, length(y)))
+    store[:yhat]       = init_yhat(daterange)
+    store[:stats]      = init_stats(length(daterange), 2, cfg.nruns)
+    store[:maxloss]    = loss(store[:y], store[:yhat])
     store[:model]      = model
     store[:config]     = cfg
     store[:metrics]    = metrics
     store[:name2prior] = name2prior
     store[:trace]      = NamedTuple{(:loss, :x), Tuple{Float64,Vector{Float64}}}[]
+    store[:output]     = init_output(metrics, cfg.firstday, cfg.lastday)
+    store[:daterange]  = daterange
+    store[:date2i]     = Dict(date => i for (i, date) in enumerate(daterange))
 
-    @info "$(now()) Training model"
+    @info "$(now()) Training model (maxloss = $(round(store[:maxloss]; digits=4)))"
     opt = Opt(:GN_DIRECT_L, nparams)
     #opt = Opt(:GN_CRS2_LM, nparams)
     #opt = Opt(:G_MLSL_LDS, nparams)
     #opt.local_optimizer = Opt(:LN_SBPLX, nparams)
-    opt.min_objective = loss
-    setbounds!(opt, name2prior)  # Set opt.lower_bounds and opt.upper_bounds
+    opt.min_objective = lossfunc
+    lb, ub            = getbounds(name2prior)
+    opt.lower_bounds  = lb
+    opt.upper_bounds  = ub
     if !isnothing(d["options"])
         for (k, v) in d["options"]
             setproperty!(opt, Symbol(k), v)
@@ -53,9 +65,7 @@ function trainmodel(configfile::String)
     end
     theta0 = [mean(prior) for (name, prior) in name2prior]
     (fmin, xmin, ret) = optimize(opt, theta0)
-    @info "$(now()) Return code = $(ret)"
-println("fmin = $(fmin)")
-println("xmin = $(xmin)")
+    @info "$(now()) Return code = $(ret). fmin = $(fmin).\n  xmin = $(xmin)"
 
     @info "$(now()) Extracting result"
     colnames = [Symbol(colname) for (colname, prior) in name2prior]
@@ -112,50 +122,51 @@ end
 ################################################################################
 # Model run
 
-function manyruns(model, cfg, metrics, ymax)
+function manyruns(model, cfg, metrics, output, stats, totalpositives, date2i)
     firstday  = cfg.firstday
     daterange = firstday:Day(1):cfg.lastday
-    result    = fill(0, length(daterange), cfg.nruns)  # Each column contains the time series of 1 run
     agents    = model.agents
     for r in 1:cfg.nruns
-        prev_totalpositives = 0  # Cumulative number of positives as of 11.59pm on date
         reset_model!(model, cfg)
         reset_metrics!(model)
+        reset_output!(output)
+        i_output = 0  # The number of rows of output that have been populated
         for (i, date) in enumerate(daterange)
             model.date = date
             update_policies!(cfg, date, date > firstday)
             apply_forcing!(cfg.forcing, model, date)
             execute_events!(model.schedule, date, agents, model, metrics)
-
-            # Collect result
-            totalpositives = sum_metrics(metrics, :positives)  # Sum over address: metrics[address][:positives]
-            new_positives  = totalpositives - prev_totalpositives
-            if new_positives > 2 * ymax  # EARLY STOPPING CRITERION: Too many cases
-                return fill(Inf, 1, 1)   # Arbitrary 2D array containing large distances
-            end
-            result[i, r]        = new_positives
-            prev_totalpositives = totalpositives
+            i_output, i_total = metrics_to_output!(metrics, output, r, date, i_output)  # System at 11:59pm
+            output[i_total, :positives] >= totalpositives && return false  # EARLY STOPPING CRITERION: Too many cases
+            output_to_stats!(stats, output, i_total, r, date2i)
         end
     end
-    result
+    true
 end
 
 ################################################################################
 # Loss function
 
-function loss(particle, grad)
+"NLopt requires the gradient as the 2nd argument, even though we don't use it."
+function lossfunc(particle, grad)
     particle_to_params_and_policies!(particle, store[:name2prior], store[:config], store[:model].params)
-    yhat = manyruns(store[:model], store[:config], store[:metrics], store[:ymax])
-    if isfinite(yhat[1, 1])
-        agg    = [quantile(view(yhat, t, :), 0.5) for t = 1:size(yhat, 1)]  # Median of simulated values at each time step
-        result = rmse(store[:y], agg)
-        result = result < store[:maxloss] ? result : 1000.0  # gain = exp(-loss) = exp(-1000) = 0
+    maxloss = 1000.0  # gain = exp(-loss) = exp(-1000) = 0
+    ok      = manyruns(store[:model], store[:config], store[:metrics], store[:output], store[:stats], store[:totalpositives], store[:date2i])
+    if ok
+        stats_to_yhat!(store[:yhat], store[:stats])
+        result = loss(store[:y], store[:yhat])
+        result = result >= store[:maxloss] ? maxloss : result
     else
-        result = 1000.0
+        result = maxloss
     end
     push!(store[:trace], (loss=result, x=particle))
     @info "$(now())    Eval $(length(store[:trace])). Loss = $(round(result; digits=4)). x = $(round.(particle; digits=4))"
     result
+end
+
+function loss(y::DataFrame, yhat::DataFrame)
+    0.9 * rmse(y.newpositives, yhat.newpositives) +
+    0.1 * rmse(y.newdeaths, yhat.newdeaths)
 end
 
 function negative_loglikelihood(y, yhat)
@@ -178,40 +189,55 @@ function rmse(y, yhat)
 end
 
 ################################################################################
+# metrics -> output (DataFrame) -> stats (Array{Int, 3}) -> yhat (DataFrame)
+# yhat (y and yhat are the inputs to the loss function)
+
+"Returns: DataFrame with columns = date, newpositives, newdeaths. To be populated with median (over runs) values."
+function init_yhat(daterange)
+    DataFrame(date=collect(daterange), newpositives=fill(0.0, length(daterange)), newdeaths=fill(0.0, length(daterange)))
+end
+
+"ndates x nvars x nruns"
+init_stats(ndates, nvars, nruns) = fill(0, ndates, nvars, nruns)
+
+function output_to_stats!(stats, output, i_total, run_number, date2i)
+    date = output[i_total, :date]
+    i    = date2i[date]
+    stats[i, 1, run_number] = output[i_total, :positives]
+    stats[i, 2, run_number] = output[i_total, :D]
+end
+
+"Populate yhat with the values collected in stats."
+function stats_to_yhat!(yhat::DataFrame, stats)
+    diff!(stats)  # Convert cumulative totals into daily incidence
+    for (i, date) in enumerate(yhat.date)
+        yhat[i, :newpositives] = quantile(view(stats, i, 1, :), 0.5)
+        yhat[i, :newdeaths]    = quantile(view(stats, i, 2, :), 0.5)
+    end
+end
+
+function diff!(stats::Array{Int, 3})
+    ni, nvars, nruns = size(stats)
+    for r = 1:nruns
+        for j = 1:nvars
+            diff!(view(stats, :, j, r))
+        end
+    end
+end
+
+function diff!(v::T) where {T <: AbstractVector}
+    n = size(v, 1)
+    for i = 2:n
+        v[i] -= v[i - 1]
+    end
+end
+
+################################################################################
 # Utils
 
 function construct_params(paramsfile::String)
     tbl = DataFrame(CSV.File(paramsfile))
     Dict{Symbol, Float64}(Symbol(k) => v for (k, v) in zip(tbl.name, tbl.value))
-end
-
-"Returns: Vector{Int} containing the number of new cases"
-function prepare_training_data(d)
-    # Import training data
-    opts    = d["training_data"]
-    data    = DataFrame(CSV.File(opts["filename"]))
-    datecol = Symbol(opts["datecolumn"])
-    datefmt = opts["dateformat"]
-    data[!, datecol] = [Date(x, datefmt) for x in data[!, datecol]]
-    sort!(data, [datecol])
-    
-    # Format result    
-    firstday  = Date(d["firstday"])
-    lastday   = Date(d["lastday"])
-    daterange = firstday:Day(1):(lastday - Day(1))
-    result    = fill(0, length(daterange))
-    for (i, date) in enumerate(daterange)
-        v = view(data, data[!, datecol] .== date, :)
-        result[i] = size(v, 1)
-    end
-    result
-end
-
-"Set opt.lower_bounds and opt.upper_bounds according to prior"
-function setbounds!(opt, name2prior)
-    lb, ub = getbounds(name2prior)
-    opt.lower_bounds = lb
-    opt.upper_bounds = ub
 end
 
 function getbounds(name2prior)
@@ -226,6 +252,33 @@ function getbounds(name2prior)
         ub[i] = b
     end
     lb, ub
+end
+
+"Returns: DataFrame with columns: date, newpositives, newdeaths."
+function prepare_training_data(d)
+    # Import training data
+    opts      = d["training_data"]
+    data      = DataFrame(CSV.File(opts["filename"]))
+    datecol   = Symbol(opts["datecolumn"])
+    datefmt   = opts["dateformat"]
+    deathdate = Symbol(opts["deathdate"])
+    data[!, datecol]   = [Date(x, datefmt) for x in data[!, datecol]]
+    data[!, deathdate] = [ismissing(x) ? missing : Date(x, datefmt) for x in data[!, deathdate]]
+    sort!(data, [datecol])
+    
+    # Construct result
+    firstday  = Date(d["firstday"])
+    lastday   = Date(d["lastday"])
+    daterange = firstday:Day(1):lastday
+    n         = length(daterange)
+    result    = DataFrame(date=collect(daterange), newpositives=fill(0, n), newdeaths=fill(0, n))
+    for (i, date) in enumerate(daterange)
+        v1 = view(data, (.!ismissing.(data[!, datecol]))   .& (data[!, datecol]   .== date), :)
+        v2 = view(data, (.!ismissing.(data[!, deathdate])) .& (data[!, deathdate] .== date), :)
+        result[i, :newpositives] = size(v1, 1)
+        result[i, :newdeaths]    = size(v2, 1)
+    end
+    result
 end
 
 function construct_result(trace, colnames)

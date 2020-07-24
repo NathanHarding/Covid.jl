@@ -14,7 +14,9 @@ using .abm
 
 function runmodel(configfile::String)
     @info "$(now()) Configuring model"
-    cfg = Config(configfile)
+    cfg      = Config(configfile)
+    firstday = cfg.firstday
+    lastday  = cfg.lastday
 
     @info "$(now()) Initialising model"
     params = construct_params(cfg.paramsfile)
@@ -24,24 +26,23 @@ function runmodel(configfile::String)
     initialise_metrics(model.agents)
 
     @info "$(now()) Initialising output data"
-    output  = init_output(metrics, cfg.firstday, cfg.lastday)  # 1 row for each date-address combination. Requires metrics to be initialised.
+    output  = init_output(metrics, firstday, lastday)  # 1 row for each date-address combination. Requires metrics to be initialised.
     outfile = joinpath(cfg.output_directory, "metrics.csv")
 
     # Run model
-    firstday = cfg.firstday
-    lastday  = cfg.lastday
-    agents   = model.agents
+    agents = model.agents
     for r in 1:cfg.nruns
         @info "$(now())    Starting run $(r)"
         reset_model!(model, cfg)
         reset_metrics!(model)
         reset_output!(output)
+        i_output = 0  # The number of rows of output that have been populated
         for date in firstday:Day(1):lastday
             model.date = date
             update_policies!(cfg, date, date > firstday)
             apply_forcing!(cfg.forcing, model, date)
             execute_events!(model.schedule, date, agents, model, metrics)
-            metrics_to_output!(metrics, output, r, date)  # System at 11:59pm
+            i_output, i_total = metrics_to_output!(metrics, output, r, date, i_output)  # System at 11:59pm
         end
         CSV.write(outfile, output; delim=',', append=r>1)
     end

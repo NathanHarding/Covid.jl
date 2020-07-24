@@ -32,7 +32,8 @@ distancing_policy:
     2020-06-09: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)
     2020-06-15: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
     2020-07-08: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
-    2020-08-20: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
+    #2020-08-20: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
+    2020-08-20: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # Stage 1: Bars/restaurants/gyms/cinemas
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
