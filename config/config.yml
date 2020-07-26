@@ -1,8 +1,8 @@
 demographics_datadir: "..\\Demographics.jl\\test\\data\\output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data\\output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
-lastday:  2020-02-10  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
-nruns: 10
+lastday:  2021-02-10  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
+nruns: 200
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 cumsum_population: "..\\Demographics.jl\\test\\data\\input\\population_by_SA2.tsv"
 
@@ -36,8 +36,9 @@ distancing_policy:
     2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
     2020-06-09: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)
     2020-06-15: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
-    2020-07-08: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
-    2020-08-20: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
+    2020-07-08: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.001, social: 0.001}  # Stage 3: Gatherings of <=2
+    # 2020-08-20: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
+    2020-08-20: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # Stage 1: Bars/restaurants/gyms/cinemas
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
@@ -61,7 +62,7 @@ tracing_policy:
 # People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS,H), or X days after the test date if asymptomatic.
 # People known to be in recent contact with a known case are quarantined for X days.
 quarantine_policy:
-    2020-01-18: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}
-    2020-03-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}}}
+    2020-01-18: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.1}}}
+    2020-03-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.1}, workplace: {days: 14, compliance: 0.1}}}
 #    2020-06-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7},
 #                 case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}, school: {days: 14, compliance: 0.7}, community: {days: 14, compliance: 0.7}, social: {days: 14, compliance: 0.7}}}
