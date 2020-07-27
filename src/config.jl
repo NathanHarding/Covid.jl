@@ -35,24 +35,26 @@ mutable struct TestingPolicy
    E::Float64
    IA::Float64
    IS::Float64
+   H::Float64
    W::Float64
    ICU::Float64
    V::Float64
 
-   function TestingPolicy(S, E, IA, IS, W, ICU, V)
+   function TestingPolicy(S, E, IA, IS, H, W, ICU, V)
        (S   < 0.0 || S   > 1.0) && error("Pr(Test Susceptible person) must be between 0 and 1")
        (E   < 0.0 || E   > 1.0) && error("Pr(Test Exposed person) must be between 0 and 1")
        (IA  < 0.0 || IA  > 1.0) && error("Pr(Test Asymptomatic case) must be between 0 and 1")
        (IS  < 0.0 || IS  > 1.0) && error("Pr(Test Symptomatic case) must be between 0 and 1")
+       (H   < 0.0 || H   > 1.0) && error("Pr(Test Home case) must be between 0 and 1")
        (W   < 0.0 || W   > 1.0) && error("Pr(Test Ward-bed case) must be between 0 and 1")
        (ICU < 0.0 || ICU > 1.0) && error("Pr(Test ICU unventilated case) must be between 0 and 1")
        (V   < 0.0 || V   > 1.0) && error("Pr(Test Ventilated case) must be between 0 and 1")
-       new(S, E, IA, IS, W, ICU, V)
+       new(S, E, IA, IS, H, W, ICU, V)
    end
 end
 
 function TestingPolicy(d::Dict)
-    result = TestingPolicy(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    result = TestingPolicy(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     for (status, prob) in d
         (prob < 0.0 || prob > 1.0) && error("TestingPolicy has an invalid probability. status = $(status); prob = $(prob)")
         setfield!(result, Symbol(status), prob)

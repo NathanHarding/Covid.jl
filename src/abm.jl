@@ -63,7 +63,7 @@ end
 # Policies
 
 const active_distancing_policy = DistancingPolicy(0.0, 0.0, 0.0, 0.0, 0.0)
-const active_testing_policy    = TestingPolicy(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+const active_testing_policy    = TestingPolicy(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 const active_tracing_policy    = TracingPolicy((asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0), (asymptomatic=0.0,symptomatic=0.0))
 const active_quarantine_policy = QuarantinePolicy((days=0,compliance=0.0), (days=0,compliance=0.0), Dict(:household => (days=0,compliance=0.0)))
 
@@ -165,7 +165,7 @@ function update_lb2dist!(params)
 end
 
 "Forcibly change a person's status from Susceptible according to cfg.forcing[dt]"
-function apply_forcing!(forcing, model, dt,cumsum_population)
+function apply_forcing!(forcing, model, dt, cumsum_population)
     !haskey(forcing, dt) && return nothing
     seeds_today = forcing[dt]
     agents   = model.agents

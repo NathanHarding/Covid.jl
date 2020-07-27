@@ -7,11 +7,20 @@ params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/par
 cumsum_population: "..\\Demographics.jl\\test\\data\\input\\population_by_SA2.tsv"
 
 forcing:
-    2020-01-18: {Any: {E: 10}}
-    2020-01-25: {Any: {E: 10}} # At 00:00:01 change 1 person from Susceptible to Exposed
-    2020-02-01: {Any: {E: 10}}
-    2020-02-08: {Any: {E: 10}}
-    2020-02-15: {Any: {E: 10}}
+    # 2020-02-01: {213011328: {E : 20 },
+    #              213021343: {E : 20 , R : 500},
+    #              313011328: {E : 20 }}
+    2020-01-18: {Any : {E: 10}}
+    2020-01-25: {Any : {E: 10}}
+    2020-02-01: {Any : {E: 10}}
+    2020-02-08: {Any : {E: 10}}
+    2020-02-15: {Any : {E: 10}}
+    2020-04-17: {Any : {E: 80}}    # Cedar Meats outbreak
+    2020-04-24: {Any : {E: 80}}    # Fawkner McDonalds outbreak
+    2020-06-01: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
+    2020-06-06: {Any : {E: 500}}   # BLM protest Melbourne
+    2020-06-08: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
+    2020-06-15: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)

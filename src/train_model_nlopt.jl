@@ -134,7 +134,7 @@ function manyruns(model, cfg, metrics, output, stats, totalpositives, date2i)
         for (i, date) in enumerate(daterange)
             model.date = date
             update_policies!(cfg, date, date > firstday)
-            apply_forcing!(cfg.forcing, model, date)
+            apply_forcing!(cfg.forcing, model, date, cfg.cumsum_population)
             execute_events!(model.schedule, date, agents, model, metrics)
             i_output, i_total = metrics_to_output!(metrics, output, r, date, i_output)  # System at 11:59pm
             output[i_total, :positives] >= totalpositives && return false  # EARLY STOPPING CRITERION: Too many cases
