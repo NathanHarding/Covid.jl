@@ -25,14 +25,8 @@ The set of possible states for each person in the population is:
 ## A Brief Note on Simulated Time
 
 The model has a `date` property with a value of type `Date`, with unit 1 day.
-Metrics reported on a given date specify the state of the system __as at 12am on that date__.
-That is, a new date ticks over and the state of play is recorded before any new events take place.
-All events that occur can be thought of as occuring between 12:00:01 and 23:59:59 inclusive.
-
-For example, suppose a person is infected (state E) on 10th March (between 12:00:01 and 23:59:59 inclusive) and has an incubation period of 7 days.
-On the 15th or 16th of March this person will become infectious but remain asymtpomatic (state IA).
-On 17th March this person will be recorded with state IA, because at 12am the person hasn't yet transitioned to being symptomatic.
-Then the person will become symptomatic (state IS) between 12:00:01 and 23:59:59, and recorded as such on the 18th March.
+Metrics reported on a given date specify the state of the system __as at 11.59pm on that date__.
+All events that occur can be thought of as occuring between 12:00 and 23:58 inclusive, and the day's final state is recorded 1 minute later.
 
 At the technical level, an event is a function together with some arguments and a scheduled time for execution.
 When the function is executed, more events may be scheduled as part of the execution.
