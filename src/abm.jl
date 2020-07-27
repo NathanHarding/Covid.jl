@@ -368,6 +368,10 @@ function to_E!(agent::Person{Int, DiseaseProgression}, model, dt)
     state.infectious_start   = dt + Day(days_to_infectious)
     state.incubation_end     = dt + Day(days_incubating)
     schedule!(agent.id, state.infectious_start, to_IA!, model)  # Person becomes IA before the incubation period ends
+    if active_testing_policy.E > 0.0 && rand() < active_testing_policy.E  # Schedule test for Covid
+        dur_totest = rand(0:(days_to_infectious - 1))  # Time now and test
+        schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
+    end
 end
 
 "Start of the infectious period, 1-2 days before the end of the incubation period."
@@ -381,10 +385,16 @@ function to_IA!(agent::Person{Int, DiseaseProgression}, model, dt)
     state.infectious_end     = dt + Day(days_infectious)
     if state.most_severe_state == :IA
         schedule!(agent.id, state.infectious_end, to_R!, model)   # Person remains IA and recovers upon exiting the infectious period
+        dur_totest = rand(0:(days_infectious - 1))  # Time between now and test
     else
         schedule!(agent.id, state.incubation_end, to_IS!, model)  # Person becomes symptomatic after the incubation period
+        ub = max(0, days_to_end_incubation - 1)
+        dur_totest = rand(0:ub)  # Time between now and test
     end
     infect_contacts!(agent, model, dt)
+    if active_testing_policy.IA > 0.0 && rand() < active_testing_policy.IA  # Schedule test for Covid
+        schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
+    end
 end
 
 "End of the incubation period. Start symptomatic period."
@@ -423,7 +433,7 @@ function to_IS!(agent::Person{Int, DiseaseProgression}, model, dt)
             schedule!(agent.id, state.infectious_end, to_H!, model)  # Remain home after infectious period before being hospitalised
         end
     end
-    if rand() < active_testing_policy.IS  # Schedule test for Covid
+    if active_testing_policy.IS > 0.0 && rand() < active_testing_policy.IS  # Schedule test for Covid
         dur_totest = max(2, dur_onset2test(model.params) - 2)  # Time between onset of symptoms and test...at least 2 days
         schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
     end
@@ -452,15 +462,21 @@ function to_H!(agent::Person{Int, DiseaseProgression}, model, dt)
         dur_home = max(0, dur_home)
         schedule!(agent.id, dt + Day(dur_home), to_W!, model)  # Proceed from Home to Ward
     end
+    if active_testing_policy.H > 0.0 && rand() < active_testing_policy.H  # Schedule test for Covid
+        dur_H       = most_severe_state == :H ? (state.symptoms_end - dt).value : dur_home
+        ub          = max(0, dur_H - 1)
+        dur_to_test = rand(0:ub)  # Time between now and test
+        schedule!(agent.id, dt + Day(dur_totest), test_for_covid!, model)
+    end
 end
 
 function to_W!(agent::Person{Int, DiseaseProgression}, model, dt)
+    schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
     state        = agent.state
     prevstate    = state.status
     state.status = :W
     state.dt_last_transition = dt
     state.quarantined = true  # All hospitalised patients are assumed to be quarantined
-    rand() < active_testing_policy.W && schedule!(agent.id, dt, test_for_covid!, model)  # Test immediately
     most_severe_state = state.most_severe_state
     dur_symptomatic   = (state.symptoms_end - state.incubation_end).value
     if most_severe_state == :W        # Path is: Home->Ward->Recovery
