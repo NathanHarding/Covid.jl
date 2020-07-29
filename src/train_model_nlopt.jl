@@ -159,7 +159,7 @@ function lossfunc(particle, grad)
     else
         result = maxloss
     end
-    push!(store[:trace], (loss=result, x=particle))
+    push!(store[:trace], deepcopy((loss=result, x=particle)))
     @info "$(now())    Eval $(length(store[:trace])). Loss = $(round(result; digits=4)). x = $(round.(particle; digits=4))"
     result
 end
@@ -291,6 +291,7 @@ function construct_result(trace, colnames)
 
     # Second pass: Group duplicate particles
     result = DataFrame(fill(Float64, 1 + length(colnames)), vcat(:loss, colnames), 0)
+    a = groupby(temp,colnames)
     for subdata in groupby(temp, colnames)
         row = Dict{Symbol, Float64}(:loss => mean(subdata.loss))
         for colname in colnames

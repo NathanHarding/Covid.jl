@@ -75,7 +75,7 @@ options:
     #f_calls_limit: 100   # Optim: Soft limit
     #time_limit: 3600  # Optim: Soft limit
     #f_tol: 0.1  # Optim: Relative error of objective function
-    #maxeval: 100   # NLopt
+    maxeval: 10   # NLopt
     maxtime: 7200  # NLopt
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
