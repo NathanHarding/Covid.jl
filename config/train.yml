@@ -1,7 +1,7 @@
 demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
 output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
-firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
-lastday:  2020-03-23  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
+firstday: 2020-06-01  # Simulation starts at 12am (initial state recorded at 11:59pm).
+lastday:  2020-07-07  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
 nruns: 20
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 cumsum_population: "..\\Demographics.jl\\test\\data\\input\\population_by_SA2.tsv"
@@ -18,23 +18,26 @@ forcing:
     2020-04-17: {Any : {E: 80}}    # Cedar Meats outbreak
     2020-04-24: {Any : {E: 80}}    # Fawkner McDonalds outbreak
     2020-06-01: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
-    2020-06-06: {Any : {E: 500}}   # BLM protest Melbourne
-    2020-06-08: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
-    2020-06-15: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
+    # 2020-06-06: {Any : {E: 500}}   # BLM protest Melbourne
+    # 2020-06-08: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
+    # 2020-06-15: {Any : {E: 100}}   # Security guard breaches, family gatherings, localised school outbreaks
 
 # The physical distancing policy.
 # The numbers are Pr(Contact a person in the contact list during any given day)
 distancing_policy:
     2020-01-18: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}  # Normal.
-    2020-03-23: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # Stage 1: Bars/restaurants/gyms/cinemas
-    2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
+    2020-03-01: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # Stage 1: Bars/restaurants/gyms/cinemas
+    # 2020-03-24: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.01, social: 0.01}  # School closures
     2020-03-25: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 2: Recreation, entertainment, retail, weddings/funerals.
-    2020-03-30: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
-    2020-04-27: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.04, social: 0.04}      # Social/community impatience
-    2020-05-25: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.04}  # Schools partially reopen
-    2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
-    2020-06-09: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)
-    2020-06-15: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
+    # 2020-03-30: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
+    # 2020-04-27: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.04, social: 0.04}      # Social/community impatience
+    # 2020-05-25: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.04}  # Schools partially reopen
+    # 2020-05-30: {household: 0.5, school: 0.1, workplace: 0.001, community: 0.04, social: 0.06}  # Small gatherings at home
+    2020-06-01: {household: 0.5, school: 0.2, workplace: 0.001, community: 0.04, social: 0.06}  # Schools fully reopen (Tue after Queen's Birthday)
+    # 2020-06-15: {household: 0.5, school: 0.2, workplace: 0.2, community: 0.1, social: 0.1}      # Scenario: Normal
+    2020-07-08: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
+    2020-08-02: {household: 0.5, school: 0.002, workplace: 0.001, community: 0.0001, social: 0.0001}  # Stage 3: Gatherings of <=2
+
 
 # Pr(Test | Person is not a contact of a known case, status)
 # Typically only people who are symptomatic and satisfy other criteria are tested
@@ -57,8 +60,8 @@ tracing_policy:
 # People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS,H), or X days after the test date if asymptomatic.
 # People known to be in recent contact with a known case are quarantined for X days.
 quarantine_policy:
-    2020-01-18: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}}}
-    2020-03-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}}}
+    2020-01-18: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.2}}}
+    2020-03-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7}, case_contacts: {household: {days: 14, compliance: 0.2}, workplace: {days: 14, compliance: 0.2}}}
 #    2020-06-15: {awaiting_test_result: {days: 2, compliance: 0.7}, tested_positive: {days: 10, compliance: 0.7},
 #                 case_contacts: {household: {days: 14, compliance: 0.7}, workplace: {days: 14, compliance: 0.7}, school: {days: 14, compliance: 0.7}, community: {days: 14, compliance: 0.7}, social: {days: 14, compliance: 0.7}}}
 
@@ -75,15 +78,53 @@ options:
     #f_calls_limit: 100   # Optim: Soft limit
     #time_limit: 3600  # Optim: Soft limit
     #f_tol: 0.1  # Optim: Relative error of objective function
-    maxeval: 10   # NLopt
-    maxtime: 7200  # NLopt
+    maxeval: 100000   # NLopt
+    maxtime: 160000  # NLopt
 
 # Unknowns to be estimated via training. Format is name => prior. Initial values are supplied in the config.
 unknowns:
-    - params.p_infect:                       [Uniform, 0.005, 0.05]
-    - distancingpolicy.household.2020-01-18: [Uniform, 0.001, 0.5]
-    - distancingpolicy.school.2020-01-18:    [Uniform, 0.001, 0.5]
-    - distancingpolicy.workplace.2020-01-18: [Uniform, 0.001, 0.5]
-    - distancingpolicy.community.2020-01-18: [Uniform, 0.001, 0.5]
-    - distancingpolicy.social.2020-01-18:    [Uniform, 0.001, 0.5]
-    - testingpolicy.IS.2020-01-18:           [Uniform, 0.001, 0.5]
+    - params.p_infect:                       [Uniform, 0.002, 0.1]
+    - meta.home_const.2020-01-18:               [Uniform, 0.1, 0.8]
+    # - distancingpolicy.household.2020-01-18: [Uniform, 0.1, 0.8]
+    # - meta.no_home.2020-01-18:               [Uniform, 0.0001, 0.5]
+    # # - meta.struc.2020-01-18:               [Uniform, 0.0001, 0.3]
+    # # - meta.mix.2020-01-18:               [Uniform, 0.0001, 0.3]
+    # - distancingpolicy.household.2020-03-25: [Uniform, 0.1, 0.8]
+    # - meta.no_home.2020-03-25:               [Uniform, 0.0001, 0.5]
+    # # - meta.struc.2020-03-25:               [Uniform, 0.0001, 0.3]
+    # # - meta.mix.2020-03-25:               [Uniform, 0.0001, 0.3]
+    # - distancingpolicy.household.2020-06-15: [Uniform, 0.1, 0.8]
+    # - meta.no_home.2020-06-15:               [Uniform, 0.0001, 0.5]
+    # # - meta.struc.2020-06-15:               [Uniform, 0.0001, 0.3]
+    # # - meta.mix.2020-06-15:               [Uniform, 0.0001, 0.3]
+    # - distancingpolicy.household.2020-07-08: [Uniform, 0.1, 0.8]
+    # - meta.no_home.2020-07-08:               [Uniform, 0.0001, 0.5]
+    # - meta.struc.2020-07-08:               [Uniform, 0.0001, 0.3]
+    # - meta.mix.2020-07-08:               [Uniform, 0.0001, 0.3]
+    # - meta.home_const.2020-01-18: [Uniform, 0.1, 0.8]
+    # - meta.no_home_fr.2020-01-18:    [Uniform, 0.0001, 0.5]
+    # - meta.no_home_fr.2020-03-01:    [Uniform, 0.0001, 0.5]
+    # - meta.no_home_fr.2020-03-25:    [Uniform, 0.0001, 0.5]
+    # - meta.no_home_fr.2020-06-15:    [Uniform, 0.0001, 0.5]
+
+    
+    # - distancingpolicy.household.2020-06-01: [Uniform, 0.1, 0.8]
+    - distancingpolicy.school.2020-06-01:    [Uniform, 0.0001, 0.5]
+    - distancingpolicy.workplace.2020-06-01: [Uniform, 0.0001, 0.5]
+    - meta.mix.2020-06-01: [Uniform, 0.0001, 0.5]
+
+    # - distancingpolicy.household.2020-06-15: [Uniform, 0.1, 0.8]
+    # - distancingpolicy.school.2020-06-15:    [Uniform, 0.0001, 0.5]
+    # - distancingpolicy.workplace.2020-06-15: [Uniform, 0.0001, 0.5]
+    # - distancingpolicy.community.2020-06-15: [Uniform, 0.0001, 0.5]
+    # - distancingpolicy.social.2020-06-15:    [Uniform, 0.0001, 0.5]    
+    # - distancingpolicy.household.2020-07-08: [Uniform, 0.1, 0.8]
+    # - distancingpolicy.school.2020-07-08:    [Uniform, 0.0001, 0.5]
+    # - distancingpolicy.workplace.2020-07-08: [Uniform, 0.0001, 0.5]
+    # - meta.mix.2020-07-08: [Uniform, 0.0001, 0.5]
+    # - distancingpolicy.household.2020-08-02: [Uniform, 0.1, 0.8]
+    # - distancingpolicy.school.2020-08-02:    [Uniform, 0.0001, 0.5]
+    # - distancingpolicy.workplace.2020-08-02: [Uniform, 0.0001, 0.5]
+    # - meta.mix.2020-08-02: [Uniform, 0.0001, 0.5]
+
+    

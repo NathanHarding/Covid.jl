@@ -20,6 +20,7 @@ function trainmodel(configfile::String)
     d   = YAML.load_file(configfile)
     cfg = Config(d)
     daterange  = cfg.firstday:Day(1):cfg.lastday
+    @info "Training based on $(daterange)"
     name2prior = construct_name2prior(d["unknowns"])
     nparams    = size(name2prior, 1)
 
@@ -50,8 +51,8 @@ function trainmodel(configfile::String)
     store[:date2i]     = Dict(date => i for (i, date) in enumerate(daterange))
 
     @info "$(now()) Training model (maxloss = $(round(store[:maxloss]; digits=4)))"
-    opt = Opt(:GN_DIRECT_L, nparams)
-    #opt = Opt(:GN_CRS2_LM, nparams)
+    # opt = Opt(:GN_DIRECT_L, nparams)
+    opt = Opt(:GN_CRS2_LM, nparams)
     #opt = Opt(:G_MLSL_LDS, nparams)
     #opt.local_optimizer = Opt(:LN_SBPLX, nparams)
     opt.min_objective = lossfunc
@@ -106,6 +107,58 @@ function particle_to_params_and_policies!(particle, name2prior, cfg, modelparams
         paramvalue = particle[j]
         if category == :params
             modelparams[paramname] = paramvalue
+        elseif category == :meta
+            date      = Date(nameparts[3])
+            if paramname == :no_home
+                fld = Symbol("t2distancingpolicy")
+                dt2policy = getfield(cfg, fld)
+                policy    = dt2policy[date]
+                paramname = Symbol(:school)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:workplace)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:community)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:social)
+                setfield!(policy, paramname, paramvalue)
+            elseif paramname == :no_home_fr
+                fld = Symbol("t2distancingpolicy")
+                dt2policy = getfield(cfg, fld)
+                policy    = dt2policy[date]
+                paramname = Symbol(:school)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:workplace)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:community)
+                setfield!(policy, paramname, 0.5 * paramvalue)
+                paramname = Symbol(:social)
+                setfield!(policy, paramname, 0.5 * paramvalue)
+            elseif paramname == :struc
+                fld = Symbol("t2distancingpolicy")
+                dt2policy = getfield(cfg, fld)
+                policy    = dt2policy[date]
+                paramname = Symbol(:school)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:workplace)
+                setfield!(policy, paramname, paramvalue)
+            elseif paramname == :mix
+                fld = Symbol("t2distancingpolicy")
+                dt2policy = getfield(cfg, fld)
+                policy    = dt2policy[date]
+                paramname = Symbol(:community)
+                setfield!(policy, paramname, paramvalue)
+                paramname = Symbol(:social)
+                setfield!(policy, paramname, paramvalue)
+            elseif paramname == :home_const
+                fld = Symbol("t2distancingpolicy")
+                dt2policy = getfield(cfg, fld)
+                dates = [Date(2020,06,01),Date(2020,07,08),Date(2020,08,02)]
+                for dat in dates
+                    policy    = dt2policy[dat]
+                    paramname = Symbol(:household)
+                    setfield!(policy, paramname, paramvalue)
+                end
+            end
         elseif in(category, policies)
             date      = Date(nameparts[3])
             fld       = Symbol("t2$(category)")
@@ -137,7 +190,7 @@ function manyruns(model, cfg, metrics, output, stats, totalpositives, date2i)
             apply_forcing!(cfg.forcing, model, date, cfg.cumsum_population)
             execute_events!(model.schedule, date, agents, model, metrics)
             i_output, i_total = metrics_to_output!(metrics, output, r, date, i_output)  # System at 11:59pm
-            output[i_total, :positives] >= totalpositives && return false  # EARLY STOPPING CRITERION: Too many cases
+            output[i_total, :positives] >= 2*totalpositives && return false  # EARLY STOPPING CRITERION: Too many cases
             output_to_stats!(stats, output, i_total, r, date2i)
         end
     end
@@ -150,7 +203,7 @@ end
 "NLopt requires the gradient as the 2nd argument, even though we don't use it."
 function lossfunc(particle, grad)
     particle_to_params_and_policies!(particle, store[:name2prior], store[:config], store[:model].params)
-    maxloss = 1000.0  # gain = exp(-loss) = exp(-1000) = 0
+    maxloss = 100000.0  # gain = exp(-loss) = exp(-1000) = 0
     ok      = manyruns(store[:model], store[:config], store[:metrics], store[:output], store[:stats], store[:totalpositives], store[:date2i])
     if ok
         stats_to_yhat!(store[:yhat], store[:stats])
@@ -165,8 +218,8 @@ function lossfunc(particle, grad)
 end
 
 function loss(y::DataFrame, yhat::DataFrame)
-    0.9 * rmse(y.newpositives, yhat.newpositives) +
-    0.1 * rmse(y.newdeaths, yhat.newdeaths)
+    1.0 * rmse(y.newpositives, yhat.newpositives) +
+    0.0 * rmse(y.newdeaths, yhat.newdeaths)
 end
 
 function negative_loglikelihood(y, yhat)
@@ -184,6 +237,24 @@ function rmse(y, yhat)
     result = 0.0
     for i = 1:n
         result += abs2(y[i] - yhat[i])
+    end
+    sqrt(result / n)
+end
+
+function mae(y, yhat)
+    n = size(y, 1)
+    result = 0.0
+    for i = 1:n
+        result += abs(y[i] - yhat[i])
+    end
+    result / n
+end
+
+function rmse_roll(y, yhat)
+    n = size(y, 1)
+    result = 0.0
+    for i = 1:n-2
+        result += abs2(y[i]+y[i+1]+y[i+2] - yhat[i]-yhat[i+1]-yhat[i+2])
     end
     sqrt(result / n)
 end
@@ -279,6 +350,7 @@ function prepare_training_data(d)
         result[i, :newdeaths]    = size(v2, 1)
     end
     result
+    show(result)
 end
 
 function construct_result(trace, colnames)

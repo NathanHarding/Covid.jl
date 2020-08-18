@@ -95,11 +95,18 @@ uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 
 [[Demographics]]
 deps = ["CSV", "DataFrames", "Dates", "Distributions", "JSON", "LightGraphs", "Logging", "Random", "YAML"]
-git-tree-sha1 = "0c3933eb6d8969ae0b2a8bae6715fdb44206d4ed"
+git-tree-sha1 = "6c280a12db4927759763d8ee5b5ef63787a322d5"
 repo-rev = "master"
-repo-url = "https://github.com/nathanharding/demographics.jl"
+repo-url = "https://github.com/NathanHarding/Demographics.jl"
 uuid = "ed023b40-7443-46fc-9fd7-287687bfdd8b"
 version = "0.2.2"
+[[Demographics]]
+deps = ["CSV", "DataFrames", "Dates", "Distributions", "JSON", "LightGraphs", "Logging", "Random", "YAML"]
+git-tree-sha1 = "a9d8943968869b97c4df520e5ffca0f7414e05b6"
+repo-rev = "master"
+repo-url = "https://github.com/JockLawrie/Demographics.jl"
+uuid = "ce7d0591-943f-4b9f-ac68-e93022213889"
+version = "0.2.0"
 
 [[DiffResults]]
 deps = ["StaticArrays"]
