@@ -1,13 +1,13 @@
 name = "Covid"
-uuid = "67fff2a5-6968-419c-89a6-5dde04ccd80d"
-authors = ["jock.lawrie <jock.lawrie@gmail.com>"]
+uuid = "196f2941-2d58-45ba-9f13-43a2532b2fa8"
+authors = ["nathan.harding <njharding93@gmail.com>"]
 version = "0.1.2"
 
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-Demographics = "ce7d0591-943f-4b9f-ac68-e93022213889"
+Demographics = "196f2941-2d58-45ba-9f13-43a2532b2fa8"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
