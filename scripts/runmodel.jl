@@ -1,6 +1,6 @@
-using Pkg
-Pkg.activate(pwd())
-Pkg.instantiate()
+# using Pkg
+# Pkg.activate(pwd())
+# Pkg.instantiate()
 
 import Pkg
 Pkg.activate(normpath(joinpath(@__DIR__, "..")))
