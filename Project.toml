@@ -1,5 +1,6 @@
 name = "Covid"
-uuid = "196f2941-2d58-45ba-9f13-43a2532b2fa8"
+<<<<<<< HEAD
+uuid = "33d0a63b-917b-46aa-ba5a-d1fcfc7671af"
 authors = ["nathan.harding <njharding93@gmail.com>"]
 version = "0.1.2"
 
