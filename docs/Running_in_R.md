@@ -14,9 +14,10 @@ The source files for this project are contained within two github repositories [
 2. Extract public_data_files_covid to the same parent directory.
 	These directories need to share the same parent directory as many of the scripts use relative paths. Demographics.jl generates the population of agents including contacts whereas Covid.jl runs the epidemic simulation.
 
+
 ### Config files
-in order to change the base probability of infection change
-Covid.jl\\data\\input\\params.tsv 
+
+In order to change the base probability of infection change p_infect in Covid.jl\\data\\input\\params.tsv 
 
 In order to change the parameters of the model need to edit
 Covid.jl\config\config.yml
@@ -38,6 +39,7 @@ Open a terminal
 This saves an output to "Covid.jl\data\output\metrics.csv". This output contains a time series for each run at the level of SA2. 
 In order to aggregate to total values on each day we run Covid.jl\scripts\filter_results.jl which generates metrics_filtered.csv an aggregated time series.
 
+
 ### Running from R
 - Open Covid.jl\\scripts\\runmodel.R
 - Change base_wdir to the parent directory of Covid.jl, Demographics.jl and public_data_files_covid
@@ -45,6 +47,7 @@ In order to aggregate to total values on each day we run Covid.jl\scripts\filter
 - If you don't want to regenerate the population (which takes around 10 minutes) set first_run = FALSE to skip population generation.
 
 package installation should be taken care of by the julia scripts called by runmodel.R. If you have issues please email [me](nathan.harding@dhhs.vic.gov.au). These can generally be resolved by running once from the Julia REPL
+
 
 ### Running from the REPL
 Open julia REPL
