@@ -12,3 +12,4 @@ system(paste(julia_install_directory, "runtests.jl"))
 
 setwd(file.path(base_wdir,"Covid.jl"))
 system("C:\\Users\\User\\AppData\\Local\\Programs\\Julia\\Julia-1.4.2\\bin\\julia scripts\\runmodel.jl")
+system("C:\\Users\\User\\AppData\\Local\\Programs\\Julia\\Julia-1.4.2\\bin\\julia scripts\\filter_results.jl")

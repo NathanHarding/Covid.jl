@@ -1,10 +1,10 @@
-demographics_datadir: "..\\Demographics.jl\\test\\data\\output"  # Directory containing saved population data. people = load(demographics_datadir)
-output_directory: "data\\output"  # Full path is /path/to/Covid.jl/data/output
+demographics_datadir: "../Demographics.jl/test/data/output"  # Directory containing saved population data. people = load(demographics_datadir)
+output_directory: "data/output"  # Full path is /path/to/Covid.jl/data/output
 firstday: 2020-01-18  # Simulation starts at 12am (initial state recorded at 11:59pm).
 lastday:  2020-12-31  # Simulation finishes at 11:59pm (final state recorded at 11:59pm).
 nruns: 10
 params: "data/input/params.tsv"  # Full path is /path/to/Covid.jl/data/input/params.tsv
-cumsum_population: "..\\Demographics.jl\\test\\data\\input\\population_by_SA2.tsv"
+cumsum_population: "../Demographics.jl/test/data/input/population_by_SA2.tsv"
 
 forcing:
     # 2020-02-01: {213011328: {E : 20 }, 
