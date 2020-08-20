@@ -52,6 +52,13 @@ package installation should be taken care of by the julia scripts called by runm
 ### Running from the REPL
 Open julia REPL
 ```julia
+using Pkg
+Pkg.add("CSV")
+Pkg.add("DataStructures")
+Pkg.add("Compat")
+Pkg.add("YAML")
+Pkg.add("Distributions")
+Pkg.add("LightGraphs")
 cd("path\to\parent\Demographics.jl")
 ]  #enters Pkg mode
 activate .
@@ -61,6 +68,7 @@ CTRL+C  # exit pkg mode
 include("scripts\\generate_population_files.jl")
 cd("test") 
 include("runtests.jl")
+
 ```
 -> runtests generates the population file ~ 650mb and takes about 10 minutes to run
 ```julia
@@ -71,4 +79,5 @@ st
 instantiate
 CTRL+C   # exit pkg mode
 include("scripts\\runmodel.jl")
+include("scripts\\filter_results.jl")
 ```
