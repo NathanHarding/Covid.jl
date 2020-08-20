@@ -41,16 +41,7 @@ In order to aggregate to total values on each day we run Covid.jl\scripts\filter
 
 
 ### Running from R
-- Open Covid.jl\\scripts\\runmodel.R
-- Change base_wdir to the parent directory of Covid.jl, Demographics.jl and public_data_files_covid
-- change julia_install_directory to your local julia install directory. By default it will be something like "C:\\Users\\User\\AppData\\Local\\Programs\\Julia\\Julia-1.4.2\\bin\\julia"
-- If you don't want to regenerate the population (which takes around 10 minutes) set first_run = FALSE to skip population generation.
-
-package installation should be taken care of by the julia scripts called by runmodel.R. If you have issues please email [me](nathan.harding@dhhs.vic.gov.au). These can generally be resolved by running once from the Julia REPL
-
-
-### Running from the REPL
-Open julia REPL
+Before running from R, you will need to open the Julia REPL and input the following commands to install the correct packages
 ```julia
 using Pkg
 Pkg.add("CSV")
@@ -59,6 +50,16 @@ Pkg.add("Compat")
 Pkg.add("YAML")
 Pkg.add("Distributions")
 Pkg.add("LightGraphs")
+```
+- Open Covid.jl\\scripts\\runmodel.R
+- Change base_wdir to the parent directory of Covid.jl, Demographics.jl and public_data_files_covid
+- change julia_install_directory to your local julia install directory. By default it will be something like "C:\\Users\\User\\AppData\\Local\\Programs\\Julia\\Julia-1.4.2\\bin\\julia"
+- The first time you run from R you will need to generate the population file. If you don't want to regenerate the population on subsequent runs (which takes around 10 minutes) set first_run = FALSE to skip population generation.
+
+
+### Running from the REPL
+Open julia REPL
+```julia
 cd("path\to\parent\Demographics.jl")
 ]  #enters Pkg mode
 activate .
