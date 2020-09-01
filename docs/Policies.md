@@ -50,7 +50,7 @@ tracing_policy:
 ## Quarantine
 
 The quarantine policy specifies how many days people are quarantined, together with the level of compliance (expressed as a probability).
-People who are awaiting test results are quarantined until the result is available, which is assumed to be 2 days after the test date.
+People who are awaiting test results are quarantined until the result is available, as such, the number of days quarantined also impacts the amount of time taken to receive the result.
 People who test positive are quarantined for X days after onset of symptoms if they are symptomatic (status=IS), or X days after the test date if asymptomatic.
 People known to be in recent contact with a known case are quarantined for X days.
 

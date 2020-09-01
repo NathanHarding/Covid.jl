@@ -7,6 +7,9 @@ In order to run Covid.jl from R you require the following:
 You will need to download and install [Julia](https://julialang.org/downloads/).
 When installing Julia take note of the install path, as we will need this to run Julia from the command line.
 In particular we will require path\to\julia_X.Y\bin\julia
+- In windows this will generally be "C:\\Users\\Username\\Appdata\\Local\\Programs\\Julia"
+- In Linux this can be found by typing "which julia" into a terminal after installation of julia
+
 
 ## Source files
 The source files for this project are contained within two github repositories [Covid.jl](https://github.com/nathanharding/covid.jl) and [Demographics.jl](https://github.com/nathanharding/demographics.jl)

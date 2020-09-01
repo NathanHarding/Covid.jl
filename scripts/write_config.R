@@ -1,23 +1,12 @@
+write_config_f<-function(first_day, last_day, 
+                         nruns, 
+                         seed_dates, seed_vals,
+                         dist_dates, dist_vals, 
+                         test_dates, test_vals, 
+                         trace_dates, trace_vals,
+                         quar_dates, quar_days, quar_compl){
+
 indent <- "    "
-first_day = "2020-01-01"
-last_day = "2020-04-15"
-nruns = 10
-
-seed_dates <- c("2020-01-01","2020-02-03")
-seed_vals <- c(10,20)
-
-dist_dates <- c("2020-01-01","2020-02-03")
-dist_vals <- c(c(0.5,0.5,0.5,0.5,0.5),c(0.1,0.2,0.3,0.4,0.5))
-
-test_dates <- c("2020-01-01","2020-02-03")
-test_vals <- c(c(0.1,0.9),c(0.2,0.8))
-
-trace_dates <- c("2020-01-01")
-trace_vals <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)
-
-quar_dates <- c("2020-01-01")
-quar_days <-c(1,2,3,4,5,6)
-quar_compl <-c(0.9,0.8,0.7,0.6,0.5,0.4)
 
 preamble <- "demographics_datadir: \"../Demographics.jl/test/data/output\"  # Directory containing saved population data. people = load(demographics_datadir)\noutput_directory: \"data/output\"  # Full path is /path/to/Covid.jl/data/output"
 preamble <- paste(preamble,"\nfirstday:",first_day)
@@ -85,5 +74,5 @@ for (i in 1:length(quar_dates))
                      ", compliance: ", quar_compl[6*i],"}}}")
 }
 config = paste(preamble,forcing,distancing,testing,tracing,quarantine)
-write(config,"../config/config.yml")
-
+write(config,"./config/config.yml")
+}

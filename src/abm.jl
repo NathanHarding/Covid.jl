@@ -259,7 +259,7 @@ function test_for_covid!(agent::Person{Int, DiseaseProgression}, model, dt)
     state.last_test_date == dt    && return  # Patient has already been tested at this time step
     state.last_test_date = dt
     state.quarantined = rand() <= active_quarantine_policy.awaiting_test_result.compliance
-    schedule!(agent.id, dt + Day(2), get_test_result!, model)  # Test result available 2 days after test
+    schedule!(agent.id, dt + Day(active_quarantine_policy.awaiting_test_result.days), get_test_result!, model)  # Test result available 2 days after test
 end
 
 function get_test_result!(agent::Person{Int, DiseaseProgression}, model, dt)
