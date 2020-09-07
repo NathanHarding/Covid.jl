@@ -1,5 +1,5 @@
 write_config_f<-function(first_day, last_day, 
-                         nruns, 
+                         nruns, p_infect,
                          seed_dates, seed_vals,
                          dist_dates, dist_vals, 
                          test_dates, test_vals, 
@@ -76,5 +76,5 @@ for (i in 1:length(quar_dates))
 }
 config = paste(preamble,forcing,distancing,testing,tracing,quarantine)
 write(config,paste0("./config/",filename,".yml"))
-system(paste("sed \"1s/.*/params 0.011 description/\" params.tsv >", paste0("./input/params_",filename,".tsv")))
+system(paste("sed \"2s/.*/p_infect", p_infect ,"Pr(Person infects contact | Person makes contact with contact)./\" params.tsv >", paste0("./input/params_",filename,".tsv")))
 }

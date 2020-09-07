@@ -88,16 +88,17 @@ dfq = data.frame(p_infect = q[,1],
 for (row in 1:nrow(dfq)){
   outdir = paste0("output_",row%%n_par_runs)
   print(outdir)
-  fname = paste0("config_",row%%n_par_runs,"_",(row-1)%/%n_par_runs)
-  print(fname)
+  filename = paste0("config_",row%%n_par_runs,"_",(row-1)%/%n_par_runs)
+  print(filename)
 write_config_f("2020-01-01", "2021-01-01", 1,
+               dfq[row,"p_infect"],
                "2020-01-01",c(100),
                "2020-01-01",c(dfq[row,"dp_hh"],dfq[row,"dp_sc"],dfq[row,"dp_wo"],dfq[row,"dp_co"],dfq[row,"dp_so"]),
                "2020-01-01",c(dfq[row,"test_IS"],dfq[row,"test_W"]),
                "2020-01-01",c(dfq[row,"trace_hh"],dfq[row,"trace_hh"],dfq[row,"trace_sc_w"],dfq[row,"trace_sc_w"],dfq[row,"trace_sc_w"],dfq[row,"trace_sc_w"],dfq[row,"trace_co_so"],dfq[row,"trace_co_so"],dfq[row,"trace_co_so"],dfq[row,"trace_co_so"]),
                "2020-01-01",c(dfq[row,"days_for_test"],10,14,14,14,14,14),
                c(dfq[row,"qp_atr"],dfq[row,"qp_tp"],dfq[row,"qp_cc"],dfq[row,"qp_cc"],dfq[row,"qp_cc"],dfq[row,"qp_cc"],dfq[row,"qp_cc"]),
-               outdir,fname
+               outdir,filename
                )
 }
 
