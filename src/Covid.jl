@@ -7,4 +7,6 @@ using .run_model
 include("train_model_nlopt.jl")
 using .train_model
 
+include("GSA_write.jl")
+using .GSA_write
 end

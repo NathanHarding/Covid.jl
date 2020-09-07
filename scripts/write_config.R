@@ -4,15 +4,16 @@ write_config_f<-function(first_day, last_day,
                          dist_dates, dist_vals, 
                          test_dates, test_vals, 
                          trace_dates, trace_vals,
-                         quar_dates, quar_days, quar_compl){
+                         quar_dates, quar_days, quar_compl,outdir,filename){
 
 indent <- "    "
 
-preamble <- "demographics_datadir: \"../Demographics.jl/test/data/output\"  # Directory containing saved population data. people = load(demographics_datadir)\noutput_directory: \"data/output\"  # Full path is /path/to/Covid.jl/data/output"
+preamble <- "demographics_datadir: \"../Demographics.jl/test/data/output\"  # Directory containing saved population data. people = load(demographics_datadir)"
+preamble <- paste0(preamble,"\noutput_directory: \"data/",outdir,"\"  # Full path is /path/to/Covid.jl/data/output")
 preamble <- paste(preamble,"\nfirstday:",first_day)
 preamble <- paste(preamble,"\nlastday:",last_day)
 preamble<- paste(preamble,"\nnruns:",nruns)
-preamble<- paste(preamble,"\nparams: \"data/input/params.tsv\"  # Full path is /path/to/Covid.jl/data/input/params.tsv
+preamble<- paste(preamble,"\nparams: \"", paste0("data/input/params_",filename,".tsv"),"\"  # Full path is /path/to/Covid.jl/data/input/params.tsv
 cumsum_population: \"../Demographics.jl/test/data/input/population_by_SA2.tsv\"")
 
 
@@ -74,5 +75,6 @@ for (i in 1:length(quar_dates))
                      ", compliance: ", quar_compl[6*i],"}}}")
 }
 config = paste(preamble,forcing,distancing,testing,tracing,quarantine)
-write(config,"./config/config.yml")
+write(config,paste0("./config/",filename,".yml"))
+system(paste("sed \"1s/.*/params 0.011 description/\" params.tsv >", paste0("./input/params_",filename,".tsv")))
 }

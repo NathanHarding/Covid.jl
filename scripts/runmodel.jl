@@ -7,3 +7,4 @@ Pkg.activate(normpath(joinpath(@__DIR__, "..")))
 Pkg.instantiate()
 using Covid
 Covid.runmodel(joinpath(pwd(), "config", "config.yml"))
+
