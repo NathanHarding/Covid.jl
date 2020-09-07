@@ -91,6 +91,7 @@ for (row in 1:nrow(dfq)){
   fname = paste0("config_",row%%n_par_runs,"_",(row-1)%/%n_par_runs)
   print(fname)
 write_config_f("2020-01-01", "2021-01-01", 1,
+               dfq[row,"p_infect"],
                "2020-01-01",c(100),
                "2020-01-01",c(dfq[row,"dp_hh"],dfq[row,"dp_sc"],dfq[row,"dp_wo"],dfq[row,"dp_co"],dfq[row,"dp_so"]),
                "2020-01-01",c(dfq[row,"test_IS"],dfq[row,"test_W"]),
